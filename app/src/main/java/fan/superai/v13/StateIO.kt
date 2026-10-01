@@ -73,7 +73,11 @@ object FanLog {
     private val ring = ArrayDeque<Entry>()
     /** Gürültülü olaylar (adım başına) yalnızca bellek halkasına yazılır; sink'e ise önemli olaylar gider. */
     @Volatile var sink: ((String, String) -> Unit)? = null
-    @Volatile var quiet = false      // replay sırasında adım başı olayları bastırır
+    private val quietTl = ThreadLocal<Boolean>()
+    /** Replay sırasında adım başı olayları bastırır (yalnızca çağıran iş parçacığı için). */
+    var quiet: Boolean
+        get() = quietTl.get() == true
+        set(v) { quietTl.set(v) }
 
     private val noisy = setOf(NEW_RECORD, PREDICTION_CREATED, PREDICTION_LOCKED, ACTUAL_RESULT_RECEIVED,
         MODEL_UPDATED, CALIBRATION_UPDATED, ENSEMBLE_UPDATED, STATE_PERSISTED)

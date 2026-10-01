@@ -624,14 +624,17 @@ def side_load(path, bs_json, oe_json):
         k = c.S.n
         if k > len(bs) or c.S.bs != bs[:k] or c.S.oe != oe[:k]:
             return ""
+        tail = []
         for b, o in zip(bs[k:], oe[k:]):
-            c.predict()
+            per, mix = c.predict()
+            tail.append(fsd.pack(c, per, mix))
             c.learn(b, o)
         c.predict()
         _side = c
         _side_ring.clear()
         d = _side_pack()
         d["cached"] = k
+        d["tail"] = tail
         return json.dumps(d)
     except Exception:
         return ""
