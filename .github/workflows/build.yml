@@ -123,23 +123,42 @@ jobs:
             app/build/test-results/
           if-no-files-found: ignore
 
-      - name: Sürümlü APK ve kaynak ZIP paketi
+      - name: Sürümlü APK ve v1.4 kaynak ZIP paketi (yalnızca çalışan kaynaklar + eski veri)
         id: package
         run: |
           set -euo pipefail
           VERSION=$(python3 - <<'PYVERSION'
-          import json
-          with open("app/build/outputs/apk/release/output-metadata.json") as f:
-              print(json.load(f)["elements"][0]["versionName"])
+          import json, re
+          meta = json.load(open("app/build/outputs/apk/release/output-metadata.json"))["elements"][0]["versionName"]
+          gradle = re.search(r'versionName\s*=\s*"([^"]+)"', open("app/build.gradle.kts").read()).group(1)
+          assert gradle == meta, "versionName tutarsiz: gradle=%s apk=%s" % (gradle, meta)
+          print(meta)
           PYVERSION
           )
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          mkdir -p out
+          mkdir -p out pkg
           cp app/build/outputs/apk/release/app-release.apk "out/FAN_SUPER_v${VERSION}_build${{ github.run_number }}.apk"
-          # Yalnızca bu commit'in kaynakları; yerel ayarlar, anahtarlar, loglar ve build dosyaları yok.
-          git archive --format=zip --prefix="FanSuper_v${VERSION}/" --output="out/FanSuper_v${VERSION}.zip" HEAD
+          # Çalışan kaynak ağacı: yalnızca bu commit'in izlediği dosyalar.
+          # Yerel ayarlar, anahtarlar, loglar, APK ve build klasörleri zaten git'te yok.
+          PROJECT="FanSuper_v${VERSION}"
+          git archive --format=tar --prefix="${PROJECT}/" HEAD | tar -x -C pkg
+          # Kök CSV, uygulamanın varlık (assets) kopyasıyla birebir aynı: pakette tek kopya
+          # olarak "veri/" altında verilir, proje içinde tekrar edilmez.
+          rm -f "pkg/${PROJECT}/fan_data_live.csv"
+          # Sadece eski veriler: geçmiş fan kayıtları (uygulama ilk açılışta bunu yükler).
+          mkdir -p pkg/veri
+          cp app/src/main/assets/fan_data_live.csv pkg/veri/fan_data_live.csv
+          (cd pkg && zip -r -q -X "../out/FanSuper_v${VERSION}.zip" "${PROJECT}" veri)
           (cd out && sha256sum *.apk *.zip > SHA256SUMS.txt)
+          # Paket denetimi: derleme çıktısı/log/anahtar/yerel ayar bulunmamalı.
+          if unzip -l "out/FanSuper_v${VERSION}.zip" | grep -E "\.apk|\.log|\.keystore|\.jks|local\.properties|/build/|\.git/"; then
+            echo "::error title=ZIP içeriği::paket içinde istenmeyen dosya var"; exit 1
+          fi
+          unzip -l "out/FanSuper_v${VERSION}.zip" | grep -q "veri/fan_data_live.csv"
+          unzip -l "out/FanSuper_v${VERSION}.zip" | grep -q "${PROJECT}/app/src/main/java/fan/superai/v13/Brain.kt"
+          unzip -l "out/FanSuper_v${VERSION}.zip" | grep -q "${PROJECT}/settings.gradle.kts"
           unzip -t "out/FanSuper_v${VERSION}.zip" | tail -1
+          unzip -l "out/FanSuper_v${VERSION}.zip" | tail -5
           ls -lh out
 
       - name: Artifact yükle
@@ -164,14 +183,18 @@ jobs:
           name: FAN SUPER v${{ steps.package.outputs.version }} (build ${{ github.run_number }})
           body: |
             ## FAN SUPER v${{ steps.package.outputs.version }}
-            - v1.3: tek nihai tahmin (tek rakam + tek yan) — probability-level meta-ensemble.
-            - Room/SQLite kalıcı hafıza; açılışta yalnızca yeni kayıtlar işlenir.
-            - Yan tahmin rakamdan türetilmez; Python Kalıp Arama 2.0 her iki yan eksene dahil.
-            - Replay (RESEARCH modu), sızıntı koruması, bootstrap/permutation, karşı-olgusal analiz; FAN LAB 8 sekme.
-            - Overlay tasarımı korunur: RAKAM + YAN iki satır.
+            - Overlay v1.4: en üstte Kotlin rakam, altında Python rakam, altında KISA yan (B•T / K•Ç)
+              ve en altta nihai çıktı (rakam + yan) — dört satır, aynı mavi kart.
+            - Ayarlar: yüzdelik seçimi (Yedeğe düşme eşiği) artık seçili değeri gösteriyor;
+              değer Float'a düşmeden tam saklanıyor.
+            - Otomatik tek/çift (konformal) kararı artık nihai tahmini ve overlay'i sürüyor:
+              Otomatik / Her zaman çift / Her zaman tek seçimi K/Py/RAKAM satırlarına uygulanır.
+            - Ana ekran ve FAN LAB çift kararda "1/2" gösterir; tek/çift kararı kilit bağlamıyla saklanır.
+            - v1.3 davranışı korunur: kalıcı hafıza, replay, sızıntı koruması, FAN LAB, geri alma.
 
             **FAN_SUPER_v${{ steps.package.outputs.version }}_build${{ github.run_number }}.apk** → Android uygulaması (release derleme).
-            **FanSuper_v${{ steps.package.outputs.version }}.zip** → bu sürümün kaynak kodları.
+            **FanSuper_v${{ steps.package.outputs.version }}.zip** → çalışan v1.4 kaynakları (Code on the Go / Android Studio içe aktarımı)
+            + `veri/fan_data_live.csv` (yalnızca eski kayıtlar).
             **SHA256SUMS.txt** → APK ve ZIP doğrulama özetleri.
           files: |
             out/*.apk

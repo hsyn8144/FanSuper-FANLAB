@@ -3,7 +3,9 @@ package fan.superai.v13
 import fan.superai.engine.EngineConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
@@ -169,6 +171,56 @@ class V13CoreTest {
         assertEquals(160, brain.stats.total)
         assertTrue(brain.ens[Axis.NUMBER.ordinal].rows().isNotEmpty())
         assertTrue(brain.guard.violations == 0L)
+    }
+
+    // ------------------------------------------------------------------ v1.4: tek/çift (pairMode)
+
+    @Test fun pairModeControlsHowManyCandidatesAreShown() {
+        val brain = FanBrain()
+        run(records(120, seed = 31), brain)
+        // Açık kilit varken aynı tahmin döner: her mod için ayrı beyin.
+        val single = FanBrain(); run(records(120, seed = 31), single)
+        val p2 = single.predict(emptyList(), 1_800_000_000L, 2)
+        assertNull("her zaman tek", p2.numberSecondary)
+        assertEquals("${p2.number}", p2.numberLabel)
+        val pair = FanBrain(); run(records(120, seed = 31), pair)
+        val p1 = pair.predict(emptyList(), 1_800_000_000L, 1)
+        assertNotNull("her zaman çift", p1.numberSecondary)
+        assertEquals("${p1.number}/${p1.numberSecondary}", p1.numberLabel)
+        assertNotEquals(p1.number, p1.numberSecondary)
+    }
+
+    @Test fun automaticPairModeUsesConformalScores() {
+        val brain = FanBrain()
+        run(records(140, seed = 12), brain)
+        assertTrue("değerlendirmeler konformal skor üretmeli", brain.stats.pairScores.count >= 30)
+        val auto = FanBrain(); run(records(140, seed = 12), auto)
+        val p = auto.predict(emptyList(), 1_800_000_000L, 0)
+        // Otomatik karar, tek/çift seçeneklerinden biri olmalı ve skorlarla tutarlı olmalı.
+        val single = p.numberSecondary == null
+        val scores = auto.stats.pairScores.values().sorted()
+        val q = scores[(scores.size * 0.5).toInt().coerceAtMost(scores.size - 1)]
+        val conformalSingle = (0..3).count { 1 - p.numberDistribution.probabilities[it] <= q } <= 1
+        assertEquals("otomatik karar konformal kurala uymalı", conformalSingle, single)
+    }
+
+    @Test fun groupNumberMixesFeedTheOverlayRows() {
+        val brain = FanBrain()
+        val f = brain.predict(listOf(
+            ModelOutput("k_a", "Kotlin · a", Group.KOTLIN, number = doubleArrayOf(.6, .2, .1, .1)),
+            ModelOutput("p_a", "Python · a", Group.PYTHON, number = doubleArrayOf(.1, .1, .2, .6))
+        ), 1_800_000_000L, 2)
+        assertEquals(4, f.kotlinNumberProbs!!.size)
+        assertEquals(1.0, f.kotlinNumberProbs!!.sum(), 1e-9)
+        assertEquals(1.0, f.pythonNumberProbs!!.sum(), 1e-9)
+        assertEquals(0, fan.superai.v13.Mx.argmax(f.kotlinNumberProbs!!))
+        assertEquals(3, fan.superai.v13.Mx.argmax(f.pythonNumberProbs!!))
+        // Python modeli yoksa satır null kalır (overlay "--" gösterir), Kotlin'e kopyalanmaz.
+        val kOnly = FanBrain().predict(listOf(
+            ModelOutput("k_a", "Kotlin · a", Group.KOTLIN, number = doubleArrayOf(.6, .2, .1, .1))
+        ), 1_800_000_000L, 2)
+        assertNotNull(kOnly.kotlinNumberProbs)
+        assertNull(kOnly.pythonNumberProbs)
     }
 
     @Test fun explanationIsBuiltFromRealComputation() {

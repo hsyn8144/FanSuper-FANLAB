@@ -47,12 +47,27 @@ internal fun overlayRecent(st: EngineState?, echo: Echo): List<Int> {
         .takeLast(6).asReversed()
 }
 
-/** v1.3 nihai tahmin → overlay metni: tek rakam + tek yan (BS + OE), örn. "BÜYÜK+TEK". */
+/**
+ * v1.4 nihai tahmin → overlay metni: rakam (çift kararda "1/2") + KISA yan (BS + OE),
+ * örn. "B•T". Yan artık "BÜYÜK+TEK" gibi uzun yazılmaz.
+ */
 internal fun overlayFinal(f: FinalPrediction?): CouncilPrediction {
     if (f == null) return CouncilPrediction()
     fun pct(p: Double) = "%${(p * 100).toInt()}"
     return CouncilPrediction(
-        number = "${f.number}", numberConfidence = pct(f.confidence),
-        side = f.side.display.replace(" + ", "+"), sideConfidence = pct(f.sideConfidence)
+        number = f.numberLabel, numberConfidence = pct(f.confidence),
+        side = f.sideShort, sideConfidence = pct(f.sideConfidence)
     )
 }
+
+/**
+ * v1.4 overlay meclis satırları: Kotlin ve Python rakam tahminleri kendi grup
+ * karışımlarından gelir ("1/2" gibi). Kaç aday gösterileceği nihai tek/çift kararıyla
+ * aynıdır: tek kararda yalnızca ilk aday. Python yok/henüz hazır değilse [CouncilPrediction]
+ * "--" döner; Kotlin veya hakem sonucu Python satırına kopyalanmaz.
+ */
+internal fun overlayKotlinRow(f: FinalPrediction?): CouncilPrediction =
+    councilPrediction(f?.kotlinNumberProbs, single = f?.numberSecondary == null)
+
+internal fun overlayPythonRow(f: FinalPrediction?): CouncilPrediction =
+    councilPrediction(f?.pythonNumberProbs, single = f?.numberSecondary == null)

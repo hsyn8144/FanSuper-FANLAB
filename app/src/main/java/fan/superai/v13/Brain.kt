@@ -44,17 +44,21 @@ class BrainStats {
     val rollNumber = RollBits(100)
     val rollSide = RollBits(100)
     var blendProduct = 0.5
+    /** Konformal tek/çift kararı için geçmiş uyumsuzluk skorları (1 − p[gerçek]); v1.4. */
+    val pairScores = ScoreRing(300)
 
     fun write(o: Out) {
         o.i(total); o.i(numberHits); o.i(top2Hits); o.i(bsHits); o.i(oeHits); o.i(sideHits)
         o.d(numberLL); o.d(sideLL); o.i(baseNumber); o.i(baseBs); o.i(baseOe); o.i(baseSide)
-        rollNumber.write(o); rollSide.write(o); o.d(blendProduct)
+        rollNumber.write(o); rollSide.write(o); o.d(blendProduct); pairScores.write(o)
     }
 
     fun read(i: In) {
         total = i.i(); numberHits = i.i(); top2Hits = i.i(); bsHits = i.i(); oeHits = i.i(); sideHits = i.i()
         numberLL = i.d(); sideLL = i.d(); baseNumber = i.i(); baseBs = i.i(); baseOe = i.i(); baseSide = i.i()
         rollNumber.read(i); rollSide.read(i); blendProduct = i.d()
+        // v1.3 durumlarında bu bölüm yok: eski kayıtlar da sorunsuz yüklenir.
+        if (i.left() > 0) pairScores.read(i)
     }
 }
 
@@ -69,14 +73,28 @@ class PerfRow(
     val recent: Double, val calGap: Double, val weight: Double, val gain: Double
 )
 
-/** Karar kuralı: tüm eksen dağılımlarından TEK rakam + TEK yan (BS + OE) seçer. */
+/**
+ * Karar kuralı: tüm eksen dağılımlarından TEK rakam (istenirse ikinci adayla birlikte) + TEK yan
+ * (BS + OE) seçer. [numberSecond] yalnızca çift (2 rakam) kararında doludur; null ise gösterim tektir.
+ */
 class Decision(
-    val numberIdx: Int, val bs: Int, val oe: Int,
+    val numberIdx: Int, val numberSecond: Int?, val bs: Int, val oe: Int,
     val joint: DoubleArray, val marginalBs: DoubleArray, val marginalOe: DoubleArray
 ) {
+    val single: Boolean get() = numberSecond == null
+
     companion object {
-        /** fin: eksen başına (temperature uygulanmış) dağılımlar; wp: ürün uzmanının ağırlığı. */
-        fun decide(fin: Array<DoubleArray>, wp: Double): Decision {
+        /** Otomatik (konformal) modda karar için gereken en az skor sayısı — v1.1 hakemiyle aynı kural. */
+        const val CONFORMAL_MIN = 30
+
+        /**
+         * fin: eksen başına (temperature uygulanmış) dağılımlar; wp: ürün uzmanının ağırlığı.
+         * pairMode: 0 otomatik (konformal), 1 her zaman çift, 2 her zaman tek.
+         * scores: geçmiş uyumsuzluk skorları (1 − p[gerçek]). Otomatik modda %50 kapsama eşiği
+         * kaç rakam gösterileceğini belirler; skor azsa çift (2 rakam) gösterilir — v1.1'deki
+         * onaylanmış davranış korunur.
+         */
+        fun decide(fin: Array<DoubleArray>, wp: Double, pairMode: Int = 0, scores: DoubleArray = DoubleArray(0)): Decision {
             val pb = fin[Axis.BS.ordinal]; val po = fin[Axis.OE.ordinal]; val pc = fin[Axis.COMB.ordinal]
             val joint = DoubleArray(4)
             for (b in 0..1) for (o in 0..1) {
@@ -86,7 +104,18 @@ class Decision(
             Mx.normalize(joint, 1e-6)
             val mb = doubleArrayOf(joint[0] + joint[1], joint[2] + joint[3])
             val mo = doubleArrayOf(joint[0] + joint[2], joint[1] + joint[3])
-            return Decision(Mx.argmax(fin[Axis.NUMBER.ordinal]), Mx.argmax(mb), Mx.argmax(mo), joint, mb, mo)
+            val number = fin[Axis.NUMBER.ordinal]
+            val o = Mx.top2(number)
+            val single = when (pairMode) {
+                2 -> true
+                1 -> false
+                else -> if (scores.size < CONFORMAL_MIN) false else {
+                    val sorted = scores.sorted()
+                    val q = sorted[(sorted.size * 0.5).toInt().coerceAtMost(sorted.size - 1)]
+                    (number.indices).count { 1 - number[it] <= q } <= 1
+                }
+            }
+            return Decision(o[0], if (single) null else o[1], Mx.argmax(mb), Mx.argmax(mo), joint, mb, mo)
         }
     }
 }
@@ -122,8 +151,9 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
     /**
      * Mevcut bilinen veriyle TEK nihai tahmin üretir ve KİLİTLER. Kilit açıkken tekrar çağrılırsa aynı
      * tahmin döner (aynı tahmini yeniden üretmeyiz). [inputs]: Kotlin/Python rakam modelleri ve Python yan modelleri.
+     * [pairMode]: 0 otomatik (konformal), 1 her zaman çift, 2 her zaman tek — v1.4 tek/çift kararı.
      */
-    fun predict(inputs: List<ModelOutput>, nowSeconds: Long): FinalPrediction {
+    fun predict(inputs: List<ModelOutput>, nowSeconds: Long, pairMode: Int = 0): FinalPrediction {
         open?.let {
             if (it.sequence == mem.n) return it.prediction
             FanLog.event(FanLog.ERROR, "${ErrorCodes.LOCK_STALE} kilit #${it.sequence} ≠ kayıt sayısı ${mem.n}; atıldı")
@@ -131,10 +161,11 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
         }
         val all = (inputs + side.outputs(mem, regime.current)).sortedBy { it.id }
         val axes = Array(4) { buildAxis(Axis.values()[it], all) }
-        val ctx = PredictionContext(axes, regime.current, stats.blendProduct)
+        val ctx = PredictionContext(axes, regime.current, stats.blendProduct, pairMode)
         val pred = compose(ctx, mem.n, mem.lastRecordId, nowSeconds, null)
         open = OpenLock(pred, ctx)
-        FanLog.event(FanLog.PREDICTION_CREATED, "#${pred.predictionSequence} → ${pred.number} · ${pred.sideDisplay}")
+        FanLog.event(FanLog.PREDICTION_CREATED, "#${pred.predictionSequence} → ${pred.number}" +
+            (pred.numberSecondary?.let { "/$it" } ?: "") + " · ${pred.sideDisplay}")
         FanLog.event(FanLog.PREDICTION_LOCKED, pred.predictionLockId)
         return pred
     }
@@ -155,16 +186,34 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
         return if (a.size == 0) Mx.uniform(k) else Pool.mix(k, a.dists, a.weights)
     }
 
+    /**
+     * Bir grubun (Kotlin/Python) rakam eksenindeki ağırlıklı karışımı — v1.4 overlay'inin
+     * meclis satırları bu dağılımdan beslenir. Grup yoksa null ("--" gösterilir).
+     * Ağırlıklar grup içinde yeniden normalize edilir; karar verici değildir, yalnızca gösterim.
+     */
+    private fun groupNumber(ctx: PredictionContext, g: Group): DoubleArray? {
+        val a = ctx.axis(Axis.NUMBER)
+        val idx = (0 until a.size).filter { a.groups[it] == g }
+        if (idx.isEmpty()) return null
+        var s = 0.0; for (i in idx) s += a.weights[i]
+        val w = DoubleArray(idx.size) { if (s > 0) a.weights[idx[it]] / s else 1.0 / idx.size }
+        return Pool.mix(alphabet.size, Array(idx.size) { Mx.normalize(a.dists[idx[it]].copyOf()) }, w)
+    }
+
     /** Bağlamdan nihai tahmini deterministik üretir (kilit geri yüklenirken de aynı kod kullanılır). */
     private fun compose(ctx: PredictionContext, seq: Int, lastKnownId: Long, ts: Long, lockId: String?): FinalPrediction {
         val mixes = Array(4) { axisMix(ctx, Axis.values()[it]) }
         val fin = Array(4) { Pool.shape(alphabet.k(Axis.values()[it]), mixes[it], ctx.axis(Axis.values()[it]).tau) }
-        val d = Decision.decide(fin, ctx.blendProduct)
+        val d = Decision.decide(fin, ctx.blendProduct, ctx.pairMode, stats.pairScores.values())
         val number = alphabet.number(d.numberIdx)
+        val numberSecond = d.numberSecond?.let { alphabet.number(it) }
         val classes = IntArray(alphabet.size) { alphabet.number(it) }
         val numDist = PredictionDistribution.of("final", classes, fin[0], ts)
         val calN = ens[Axis.NUMBER.ordinal].finalTracker.cal
-        val conf = calN.calibrate(fin[0][d.numberIdx])
+        // Güven, GÖSTERİLEN aday kümesinin olasılığına göre kalibre edilir:
+        // tek rakamda p[1. aday], çift kararında p[1. aday] + p[2. aday] (v1.1 hakemiyle aynı).
+        val shownP = fin[0][d.numberIdx] + (d.numberSecond?.let { fin[0][it] } ?: 0.0)
+        val conf = calN.calibrate(shownP)
         val calB = ens[Axis.BS.ordinal].finalTracker.cal; val calO = ens[Axis.OE.ordinal].finalTracker.cal
         val sideConf = 0.5 * (calB.calibrate(d.marginalBs[d.bs]) + calO.calibrate(d.marginalOe[d.oe]))
         val bsE = BigSmall.fromIndex(d.bs); val oeE = OddEven.fromIndex(d.oe)
@@ -191,7 +240,8 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
         val expl = Explainer(this, ctx, fin, d, mixes, combined, contributions).build()
         return FinalPrediction(
             number, numDist, bsE, oeE, combined.name, sideDist, conf, sideConf, Mx.entropy(fin[0]),
-            V13.REGIME_NAMES[ctx.regime], V13.ENSEMBLE_VERSION, ts, id, seq, lastKnownId, hash, contributions, expl
+            V13.REGIME_NAMES[ctx.regime], V13.ENSEMBLE_VERSION, ts, id, seq, lastKnownId, hash, contributions, expl,
+            numberSecond, groupNumber(ctx, Group.KOTLIN), groupNumber(ctx, Group.PYTHON)
         )
     }
 
@@ -245,6 +295,8 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
         val sideHit = bsHit && oeHit
         val numLL = Mx.logLoss(p.numberDistribution.probabilities, actual[0])
         val sideLL = Mx.logLoss(p.sideDistribution.combined, actual[3])
+        // Konformal tek/çift kararı için uyumsuzluk skoru (v1.4): 1 − p[gerçek].
+        stats.pairScores.add(1 - p.numberDistribution.probabilities[actual[0]])
         // Yan karışımı (ürün vs doğrudan birleşik) — Hedge, sabit paylaşımlı
         val ctxFin = Array(4) { Pool.shape(alphabet.k(Axis.values()[it]), axisMix(ctx, Axis.values()[it]), ctx.axis(Axis.values()[it]).tau) }
         val pb = ctxFin[1]; val po = ctxFin[2]; val pc = ctxFin[3]
@@ -344,6 +396,8 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
         }
         o.i(ctx.regime); o.d(ctx.blendProduct)
         o.i(p.predictionSequence); o.l(p.lastKnownRecordId); o.l(p.predictionTimestamp); o.s(p.predictionLockId); o.l(p.lockHash)
+        // v1.4 alanı EN SONDA: v1.3 kilitleri (bu alan olmadan) aynen okunmaya devam eder.
+        o.i(ctx.pairMode)
     }
 
     private fun readLock(i: In) {
@@ -358,7 +412,9 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
         }
         val reg = i.i(); val bp = i.d()
         val seq = i.i(); val lastId = i.l(); val ts = i.l(); val lockId = i.s(); val hash = i.l()
-        val ctx = PredictionContext(axes, reg, bp)
+        // v1.3 kilitlerinde pairMode yok: eski kayıtlar da okunur (otomatik kabul edilir).
+        val pm = if (i.left() >= 4) i.i() else 0
+        val ctx = PredictionContext(axes, reg, bp, pm)
         val pred = compose(ctx, seq, lastId, ts, lockId)
         if (pred.lockHash != hash) {
             FanLog.event(FanLog.ERROR, "${ErrorCodes.LOCK_TAMPERED} kilit özeti uyuşmuyor (#$seq); kilit atıldı")

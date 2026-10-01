@@ -108,7 +108,7 @@ class V13Runtime(private val store: V13Store, private val clock: () -> Long = { 
             dirty = false
             if (b.open == null) predictLive(env) else persistAll()
             publish()
-            _status.value = V13Status("READY", 1f, "v1.3 hazır (${plan.kind}: ${plan.reason})")
+            _status.value = V13Status("READY", 1f, "v1.4 hazır (${plan.kind}: ${plan.reason})")
         } catch (e: Throwable) {
             fail("finish", e)
         }
@@ -153,7 +153,8 @@ class V13Runtime(private val store: V13Store, private val clock: () -> Long = { 
     }
 
     private fun predictLive(env: V13Env) {
-        val p = brain.predict(liveInputs(env), clock())
+        // v1.4: tek/çift (kaç rakam gösterileceği) kararı ayarlardan gelir.
+        val p = brain.predict(liveInputs(env), clock(), env.cfg.pairMode)
         store.db.runInTransaction {
             store.savePrediction(V13Store.LIVE, p, true)
             persistAll()
@@ -170,7 +171,7 @@ class V13Runtime(private val store: V13Store, private val clock: () -> Long = { 
     private fun fail(where: String, e: Throwable) {
         dirty = true
         FanLog.event(FanLog.ERROR, "v13/$where: ${e.javaClass.simpleName}: ${e.message}")
-        _status.value = V13Status("ERROR", 0f, "", "v1.3 $where: ${e.message}")
+        _status.value = V13Status("ERROR", 0f, "", "v1.4 $where: ${e.message}")
     }
 
     // ------------------------------------------------------------------ canlı akış

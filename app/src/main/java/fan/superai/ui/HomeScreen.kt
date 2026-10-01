@@ -45,7 +45,7 @@ fun HomeScreen(onOverlay: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("FAN SUPER", color = C.text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(6.dp)); Pill("v1.3")
+            Spacer(Modifier.width(6.dp)); Pill("v1.4")
             Spacer(Modifier.weight(1f))
             Pill(if (running) "● Overlay AÇIK" else "○ Overlay KAPALI", bg = if (running) C.blue else C.border,
                 fg = Color.White, onClick = onOverlay)
@@ -61,7 +61,8 @@ fun HomeScreen(onOverlay: () -> Unit) {
                 if (st?.learning == true) {
                     Text("Öğreniyor… ${st?.count}/50", color = C.muted, fontSize = 22.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 } else {
-                    Text("${f.number}", color = Color(0xFFA5D6A7), fontSize = 54.sp, fontWeight = FontWeight.ExtraBold,
+                    // v1.4: tek/çift kararına göre "1" ya da "1/2" gösterilir.
+                    Text(f.numberLabel, color = Color(0xFFA5D6A7), fontSize = 54.sp, fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                     Muted("güven ${pct(f.confidence)} · entropi ${"%.2f".format(f.entropy)} · ${f.regime}", Modifier.fillMaxWidth())
                 }

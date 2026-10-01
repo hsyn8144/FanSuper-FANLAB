@@ -92,7 +92,7 @@ object ReplayEngine {
                     for (v in council.memberViews()) inputs += ModelOutput("k_${v.id}", "Kotlin · ${v.name}", Group.KOTLIN, number = v.pred)
                     python?.steps?.getOrNull(i)?.let { inputs += it.outputs() }
                     val last = records.getOrNull(i - 1)
-                    val pred = brain.predict(inputs, last?.timestamp ?: records[i].timestamp)
+                    val pred = brain.predict(inputs, last?.timestamp ?: records[i].timestamp, engineCfg.pairMode)
                     chk(pred.predictionSequence == i) { "tahmin sırası ${pred.predictionSequence} ≠ $i" }
                     chk(pred.lastKnownRecordId == (last?.recordId ?: 0L)) { "lastKnownRecordId ${pred.lastKnownRecordId} (adım $i)" }
                     chk(pred.predictionTimestamp <= records[i].timestamp) { "tahmin zamanı gerçek sonuçtan sonra (adım $i)" }

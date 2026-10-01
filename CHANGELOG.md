@@ -1,5 +1,33 @@
 # Sürüm notları
 
+## 1.4 — 2026-10-01
+Overlay yerleşimi + iki hata düzeltmesi. v1.3'ün hiçbir özelliği kaldırılmadı.
+
+**Overlay (dört satır, aynı mavi kart)**
+- En üstte **K** — Kotlin meclisinin rakam tahmini; altında **Py** — Python meclisinin rakam tahmini.
+- Altında **YAN** — nihai yan tahmini artık KISA: `B•T`, `K•Ç` gibi (eski "BÜYÜK + TEK" uzun yazım kaldırıldı).
+- En altta **RAKAM** — şimdiye kadar ekranda olan nihai çıktı (çift kararda `1/2`).
+- K/Py satırları ilgili meclisin kendi grup karışımından beslenir; Python hazır/yok ise `--` gösterir,
+  Kotlin veya hakem sonucu Python satırına kopyalanmaz.
+- Dikey kartta düğme grubu panelden artan yüksekliği alır: dört satır eklendikten sonra da
+  DEL/4/3/2/1 kısa ekranlarda kart içinde kalır. Yatay yerleşim korunur.
+
+**Düzeltmeler**
+- **Yüzdelik seçimi (Ayarlar → Yedeğe düşme eşiği):** değer Float olarak saklandığı için
+  0.18 → 0.18000000715255737 oluyor ve seçim etiketi bulunamayıp ham float yazılıyordu.
+  Değer artık tam (metin) saklanıyor, seçenek eşleştirmesi toleranslı; eski kurulumlar da okunur.
+- **Otomatik tek/çift mekanizması:** "Çift tahmin kararı" (Otomatik / Her zaman çift / Her zaman tek)
+  yalnızca eski hakemi etkiliyordu; nihai v1.3 tahmini ve overlay etkilenmiyordu. v1.4'te konformal
+  karar FanBrain'e taşındı: 1 − p[gerçek] skorları (son 300) %50 kapsama eşiğiyle değerlendirilir,
+  karar kilit bağlamıyla saklanır. Rakam/güven tek kararda tek aday, çift kararda ilk iki aday üzerinden
+  hesaplanır; Python meclisi karara katıldığında skorlar ortak güncellenir.
+
+**Sürüm/paketleme**
+- `versionCode = 5`, `versionName = "1.4"`.
+- Workflow artık `FanSuper_v1.4.zip` içinde YALNIZCA çalışan kaynakları (izlenen dosyalar) ve
+  `veri/fan_data_live.csv` (sadece eski kayıtlar) paketler; APK/log/anahtar/yerel ayar/build klasörü
+  bulunmadığını denetler. Ana ekran ve FAN LAB sürüm etiketi v1.4.
+
 ## 1.1 — 2026-09-27
 
 - Onaylanan eski mavi overlay düzeni: Kotlin rakam, Python rakam, Kotlin yan ve Python yan.

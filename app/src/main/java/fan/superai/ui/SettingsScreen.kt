@@ -70,12 +70,23 @@ private fun Toggle(title: String, sub: String? = null, value: Boolean, onChange:
         Switch(checked = value, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = C.blue))
     }
 
+/**
+ * Seçenek eşleştirme toleransı: yüzdelik ayarlar Float olarak saklandığında 0.18 değeri
+ * 0.18000000715255737'ye döner ve birebir eşleşme tutmaz; o zaman Ayarlar ham float değerini
+ * gösteriyordu ("yüzdelik seçimi çalışmıyor ve floata düşüyor"). Sayısal karşılaştırma
+ * toleranslı yapılır.
+ */
+private fun choiceEquals(a: Any?, b: Any?): Boolean = when {
+    a is Number && b is Number -> kotlin.math.abs(a.toDouble() - b.toDouble()) < 1e-6
+    else -> a == b
+}
+
 @Composable
 private fun <T> Choice(title: String, sub: String? = null, value: T, options: List<Pair<T, String>>, onChange: (T) -> Unit) {
     var open by remember { mutableStateOf(false) }
     SetRow(title, sub, onClick = { open = true }) {
         Box {
-            Text((options.firstOrNull { it.first == value }?.second ?: value.toString()) + " ▾", color = Color(0xFFCFE0F5), fontSize = 12.sp,
+            Text((options.firstOrNull { choiceEquals(it.first, value) }?.second ?: value.toString()) + " ▾", color = Color(0xFFCFE0F5), fontSize = 12.sp,
                 modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(C.border).padding(horizontal = 9.dp, vertical = 4.dp))
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 options.forEach { (v, l) -> DropdownMenuItem(text = { Text(l) }, onClick = { onChange(v); open = false }) }
