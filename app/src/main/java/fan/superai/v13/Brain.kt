@@ -275,6 +275,9 @@ class FanBrain(val alphabet: Alphabet = Alphabet()) {
 
     val undoDepth: Int get() = undoRing.size
 
+    /** En son (kayıt sayısı, sıkıştırılmış anlık görüntü) — Room'a son 8 snapshot yazmak için. */
+    fun lastUndoSnapshot(): Pair<Int, ByteArray>? = undoRing.lastOrNull()
+
     /** Durumu [count] kayıt öğrenilmiş haline (o kayda ait KİLİTLİ tahminle) döndürür. */
     fun undoTo(count: Int): Boolean {
         while (undoRing.isNotEmpty() && undoRing.last().first > count) undoRing.removeLast()

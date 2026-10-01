@@ -22,8 +22,14 @@ import fan.superai.EngineHost
 
 @Composable
 fun ResearchScreen() {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { ResearchContent() }
+}
+
+/** v1.2 araştırma içeriği (kaydırma kabı olmadan): FAN LAB › Overview altında korunur. */
+@Composable
+fun ResearchContent() {
     val r by EngineHost.research.collectAsState()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+    Column(Modifier.fillMaxWidth()) {
         FCard("🧪 FAN LAB · Model doğrulama") {
             Text(r?.status ?: "Analiz hazırlanıyor…", color=C.orange, fontSize=18.sp, fontWeight=FontWeight.Bold)
             Muted("Bu ekran mevcut motorun kronolojik tahmin kayıtlarını kullanır. Gelecek bilgi geçmiş tahmine geri sızdırılmaz.", Modifier.padding(top=5.dp))

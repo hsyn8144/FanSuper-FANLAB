@@ -14,6 +14,19 @@ import fan.superai.engine.ResearchLab
 import fan.superai.engine.ResearchReport
 import fan.superai.engine.MemberStat
 import fan.superai.engine.PythonBridge
+import fan.superai.v13.CfResult
+import fan.superai.v13.Counterfactual
+import fan.superai.v13.FanRecord
+import fan.superai.v13.FinalPrediction
+import fan.superai.v13.PredictionExplanation
+import fan.superai.v13.ResearchOutcome
+import fan.superai.v13.V13Env
+import fan.superai.v13.V13Insights
+import fan.superai.v13.V13Runtime
+import fan.superai.v13.V13Status
+import fan.superai.v13.db.FanDatabase
+import fan.superai.v13.db.PredictionRecordEntity
+import fan.superai.v13.db.V13Store
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.concurrent.Executors
@@ -104,6 +117,81 @@ object EngineHost {
     private val _research = MutableStateFlow<ResearchReport?>(null)
     val research: StateFlow<ResearchReport?> = _research
 
+    // ---- v1.3
+    private val rexec = Executors.newSingleThreadExecutor { r -> Thread(r, "fan-research").apply { priority = Thread.MIN_PRIORITY } }
+    private var v13: V13Runtime? = null
+    private var v13Plan: V13Runtime.Plan? = null
+    private val emptyFinal = MutableStateFlow<FinalPrediction?>(null)
+    private val emptyInsights = MutableStateFlow<V13Insights?>(null)
+    private val emptyStatus = MutableStateFlow(V13Status())
+    private val emptyOutcome = MutableStateFlow<ResearchOutcome?>(null)
+    private val emptyBusy = MutableStateFlow<String?>(null)
+
+    /** Tek nihai tahmin (rakam + yan) — overlay, ana ekran ve FAN LAB buradan beslenir. */
+    val finalPrediction: StateFlow<FinalPrediction?> get() = v13?.final ?: emptyFinal
+    val v13Insights: StateFlow<V13Insights?> get() = v13?.insights ?: emptyInsights
+    val v13Status: StateFlow<V13Status> get() = v13?.status ?: emptyStatus
+    val v13Research: StateFlow<ResearchOutcome?> get() = v13?.researchResult ?: emptyOutcome
+    val v13ResearchBusy: StateFlow<String?> get() = v13?.researchBusy ?: emptyBusy
+
+    private fun fanRecords(): List<FanRecord> = synchronized(lock) {
+        recs.mapIndexed { i, r -> FanRecord.of((i + 1).toLong(), r.time, r.value) }
+    }
+
+    private fun v13Env(): V13Env = V13Env(engine, bridge, engine.cfg) { fanRecords() }
+
+    /** Python replay'inden ÖNCE: kayıtlı durumu incele; üye dağılımı gerekiyorsa köprüye bildir. */
+    private fun v13Prepare(force: Boolean) {
+        val rt = v13 ?: return
+        try {
+            val plan = rt.prepare(fanRecords(), force)
+            v13Plan = plan
+            bridge?.captureMembers = plan.needsPythonMembers
+        } catch (e: Throwable) { Log.e(TAG, "v13 prepare", e); v13Plan = null }
+    }
+
+    /** Python/Kotlin kurulumu BİTTİKTEN sonra: replay/yakalama + yeni tahmin + kalıcılık. */
+    private fun v13Finish(clearHistory: Boolean = false) {
+        val rt = v13 ?: return
+        val plan = v13Plan ?: return
+        v13Plan = null
+        try {
+            _busy.value = "🧠 v1.3 meta-ensemble hazırlanıyor…"
+            rt.finish(plan, v13Env(), clearHistory)
+        } catch (e: Throwable) { Log.e(TAG, "v13 finish", e) }
+        bridge?.captureMembers = false
+    }
+
+    fun predictionPage(offset: Int, limit: Int): List<PredictionRecordEntity> =
+        try { v13?.store0?.page(offset, limit) ?: emptyList() } catch (e: Throwable) { emptyList() }
+
+    fun predictionTotal(): Int = try { v13?.store0?.predictionTotal() ?: 0 } catch (e: Throwable) { 0 }
+
+    fun explanationFor(seq: Int): PredictionExplanation? = try { v13?.store0?.explanation(seq) } catch (e: Throwable) { null }
+
+    /** Karşı-olgusal analiz: kilitli tahmin girdileri üzerinde saf simülasyon (canlı durum değişmez). */
+    fun liveCounterfactual(): List<CfResult> {
+        val rt = v13 ?: return emptyList()
+        val ctx = rt.liveContext() ?: return emptyList()
+        return Counterfactual.runAll(rt.alphabet, ctx)
+    }
+
+    /** RESEARCH/REPLAY modu: ayrı iş parçacığı + sandbox; canlı durum ve düğmeler etkilenmez. */
+    fun runResearchReplay() {
+        val rt = v13 ?: return
+        if (rt.researchBusy.value != null) return
+        rexec.execute {
+            try { rt.research(fanRecords(), engine.cfg, bridge) } catch (e: Throwable) { Log.e(TAG, "research", e) }
+        }
+    }
+
+    /** Kullanıcı elle "Full Replay": tüm geçmiş baştan oynatılır, canlı tahmin geçmişi korunur. */
+    fun fullReplay() = exec.execute {
+        if (!::engine.isInitialized) return@execute
+        bridge?.deleteState()
+        rebuildFromRecs(clearHistory = false)
+    }
+
     /** [action] anındaki durumu (hakem kararı + her üyenin tahmini) log listesine ekler. */
     private fun logActivity(action: String) {
         if (!::engine.isInitialized) return
@@ -122,11 +210,12 @@ object EngineHost {
 
     fun init(ctx: Context) {
         app = ctx.applicationContext
+        try { v13 = V13Runtime(V13Store(FanDatabase.get(app))) } catch (e: Throwable) { Log.e(TAG, "v13 db", e) }
         exec.execute {
             try {
                 val s = Settings.value
                 applied = s
-                val loaded = DataStore.load(app)
+                val loaded = loadRecords()
                 synchronized(lock) { recs = loaded }
                 engine = FanEngine(s.engineConfig(), null)
                 loaded.forEach { engine.values.add(it.value - 1); engine.times.add(it.time) }
@@ -134,7 +223,9 @@ object EngineHost {
                 engine.replayPython(); engine.rebuildKotlin()
                 publish()
                 runDiscovery()
+                v13Prepare(false)
                 if (s.pythonEnabled) startPython(s)
+                v13Finish()
                 flushWaiting()          // hazırlık sırasında basılan düğmeler şimdi işlenir
             } catch (e: Throwable) {
                 Log.e(TAG, "init", e); _pyError.value = e.message
@@ -142,11 +233,31 @@ object EngineHost {
         }
     }
 
+    /**
+     * Başlangıç kayıtları: Room (v1.3) ana kaynaktır; CSV yalnızca ilk kurulum / içe aktarma / yedek içindir.
+     * v1.2'den yükseltmede DB boştur → CSV bir kez DB'ye aktarılır. CSV DB'den uzunsa (ve DB onun öneki ise) kuyruk alınır.
+     */
+    private fun loadRecords(): MutableList<Rec> {
+        val csv = DataStore.load(app)
+        val store = v13?.store0 ?: return csv
+        return try {
+            val db = store.records()
+            if (db.isEmpty()) return csv
+            val dbRecs = db.map { Rec(it.number, it.timestamp) }.toMutableList()
+            val csvExtends = csv.size > dbRecs.size && dbRecs.indices.all { csv[it].value == dbRecs[it].value && csv[it].time == dbRecs[it].time }
+            if (csvExtends) csv else {
+                if (dbRecs.size != csv.size) DataStore.save(app, dbRecs)
+                dbRecs
+            }
+        } catch (e: Throwable) { Log.e(TAG, "loadRecords", e); csv }
+    }
+
     private fun startPython(s: AppSettings) {
         _busy.value = "🐍 Python meclisi öğreniyor… (ilk açılışta biraz sürer)"
         try {
             val b = PythonBridge(app, s.pythonJson())
             bridge = b
+            b.captureMembers = v13Plan?.needsPythonMembers == true
             engine.setPython(b)
             engine.replayPython()
             _busy.value = "⚖️ Hakem hazırlanıyor…"
@@ -235,6 +346,7 @@ object EngineHost {
             DataStore.append(app, recs.size, r)
         }
         engine.add(r.value - 1, r.time)
+        v13?.onNewRecord(FanRecord.of(synchronized(lock) { recs.size }.toLong(), r.time, r.value), v13Env())
         publish()
         logActivity("EKLE ${r.value}")
         val s = Settings.value
@@ -265,6 +377,7 @@ object EngineHost {
                 synchronized(lock) { recs.removeAt(recs.size - 1) }
                 if (!DataStore.removeLast(app)) synchronized(lock) { DataStore.save(app, recs) }
                 engine.undo()
+                v13?.onUndo(synchronized(lock) { recs.size }, v13Env())
                 if (engine.lastUndoFast) Log.i(TAG, "undo ${engine.lastUndoMs} ms (anında)")
                 else Log.w(TAG, "undo ${engine.lastUndoMs} ms (tam yeniden kurma gerekti)")
                 logActivity("GERİ AL (${if (engine.lastUndoFast) "anında" else "tam yeniden kurma"}, ${engine.lastUndoMs} ms)")
@@ -289,6 +402,7 @@ object EngineHost {
         if (!engineChanged && !pyChanged) return@execute
         engine.cfg = s.engineConfig()
         try {
+            v13Prepare(true)
             if (pyChanged) {
                 if (s.pythonEnabled) startPython(s) else {
                     bridge = null; engine.setPython(null)
@@ -297,6 +411,7 @@ object EngineHost {
             } else {
                 _busy.value = "Yeniden kuruluyor…"; engine.rebuildKotlin()
             }
+            v13Finish()
         } finally { _busy.value = null; publish(); syncEcho() }
     }
 
@@ -306,13 +421,13 @@ object EngineHost {
         _echo.value = Echo(0, emptyList())
         waiting.clear()
         if (!::engine.isInitialized) return@execute
-        rebuildFromRecs()
+        rebuildFromRecs(clearHistory = true)
     }
 
     fun resetLearning() = exec.execute {
         if (!::engine.isInitialized) return@execute
         bridge?.deleteState()
-        rebuildFromRecs()
+        rebuildFromRecs(clearHistory = true)
     }
 
     fun deleteAll() = exec.execute {
@@ -322,16 +437,18 @@ object EngineHost {
         clearActivityLog()
         if (!::engine.isInitialized) return@execute
         bridge?.deleteState()
-        rebuildFromRecs()
+        rebuildFromRecs(clearHistory = true)
     }
 
-    private fun rebuildFromRecs() {
+    private fun rebuildFromRecs(clearHistory: Boolean) {
         try {
+            v13Prepare(true)
             engine.values.clear(); engine.times.clear()
             synchronized(lock) { recs.forEach { engine.values.add(it.value - 1); engine.times.add(it.time) } }
             _busy.value = if (bridge != null) "🐍 Python yeniden öğreniyor…" else "Yeniden kuruluyor…"
             engine.replayPython(); engine.rebuildKotlin()
             runDiscovery()
+            v13Finish(clearHistory)
         } finally { _busy.value = null; publish(); syncEcho() }
     }
 

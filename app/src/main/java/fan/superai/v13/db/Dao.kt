@@ -20,9 +20,11 @@ interface V13Dao {
     @Query("SELECT * FROM PredictionRecord WHERE mode = :mode AND sequence = :seq LIMIT 1") fun predictionAt(mode: String, seq: Int): PredictionRecordEntity?
     @Query("SELECT * FROM PredictionRecord WHERE mode = :mode ORDER BY sequence DESC LIMIT :limit OFFSET :offset")
     fun predictionPage(mode: String, limit: Int, offset: Int): List<PredictionRecordEntity>
-    @Query("SELECT * FROM PredictionRecord ORDER BY sequence DESC, id DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT * FROM PredictionRecord WHERE mode = 'LIVE' OR sequence NOT IN (SELECT sequence FROM PredictionRecord WHERE mode = 'LIVE') " +
+        "ORDER BY sequence DESC, id DESC LIMIT :limit OFFSET :offset")
     fun predictionPageAll(limit: Int, offset: Int): List<PredictionRecordEntity>
-    @Query("SELECT COUNT(*) FROM PredictionRecord") fun predictionCountAll(): Int
+    @Query("SELECT COUNT(*) FROM PredictionRecord WHERE mode = 'LIVE' OR sequence NOT IN (SELECT sequence FROM PredictionRecord WHERE mode = 'LIVE')")
+    fun predictionCountAll(): Int
     @Query("SELECT COUNT(*) FROM PredictionRecord WHERE mode = :mode") fun predictionCount(mode: String): Int
     @Query("DELETE FROM PredictionRecord WHERE mode = :mode AND sequence > :seq") fun deletePredictionsAfter(mode: String, seq: Int)
     @Query("DELETE FROM PredictionRecord WHERE mode = :mode") fun clearPredictions(mode: String)

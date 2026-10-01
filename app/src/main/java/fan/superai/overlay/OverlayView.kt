@@ -14,19 +14,18 @@ import android.widget.TextView
 import fan.superai.Echo
 import fan.superai.data.AppSettings
 import fan.superai.engine.EngineState
+import fan.superai.v13.FinalPrediction
 import kotlin.math.abs
 
 /**
- * Onaylanan v9.6 mavi kartı, Kalıp satırı olmadan:
- *   🔵 K      Kotlin rakam tahmini
- *   🐍 Py     Python rakam tahmini
- *   🔵 Yan    Kotlin yan tahmini
- *   🐍 PyYan  Python yan tahmini
+ * Onaylanan v9.6 mavi kartı (v1.3: aynı stil, iki satır):
+ *   RAKAM   tek nihai rakam tahmini (meta-ensemble)
+ *   YAN     tek nihai yan tahmini (örn. BÜYÜK+TEK)
  *   son 6 sayı (en yeni solda)
  *   DEL / 4 / 3 / 2 / 1 (alt alta)
  *
- * Yatay ayarı korunur: aynı dört satır solda, düğmeler sağda.
- * Meclis/hakem detayları uygulamada kalır. Tahmin alanı ve kart kenarları
+ * Yatay ayarı korunur: aynı satırlar solda, düğmeler sağda.
+ * Kotlin/Python ayrımı ve tüm detaylar FAN LAB'da kalır. Tahmin alanı ve kart kenarları
  * sürüklenebilir; veri düğmeleri sürükleme dinleyicisine bağlanmaz.
  */
 @SuppressLint("ViewConstructor", "SetTextI18n", "ClickableViewAccessibility")
@@ -46,10 +45,8 @@ class OverlayView(
     private val purple = Color.parseColor("#CE93D8")
 
     private data class PredictionRow(val value: TextView, val confidence: TextView)
-    private lateinit var kotlinNumber: PredictionRow
-    private lateinit var pythonNumber: PredictionRow
-    private lateinit var kotlinSide: PredictionRow
-    private lateinit var pythonSide: PredictionRow
+    private lateinit var finalNumber: PredictionRow
+    private lateinit var finalSide: PredictionRow
     private var recent: TextView? = null
     private lateinit var status: TextView
     private val recentEmpty = "- - - - - -"
@@ -162,13 +159,9 @@ class OverlayView(
     private fun buildPredictionPanel() = LinearLayout(context).apply {
         orientation = VERTICAL
         setOnTouchListener(dragListener)
-        kotlinNumber = predictionRow("kotlin.number", "🔵 K", "Kotlin rakam tahmini",
+        finalNumber = predictionRow("final.number", "RAKAM", "Nihai rakam tahmini",
             Color.parseColor("#64B5F6"), Color.WHITE, confColor)
-        pythonNumber = predictionRow("python.number", "🐍 Py", "Python rakam tahmini",
-            green, Color.parseColor("#A5D6A7"), green)
-        kotlinSide = predictionRow("kotlin.side", "🔵 Yan", "Kotlin yan tahmini", purple, purple, purple)
-        pythonSide = predictionRow("python.side", "🐍 PyYan", "Python yan tahmini",
-            green, Color.parseColor("#A5D6A7"), green)
+        finalSide = predictionRow("final.side", "YAN", "Nihai yan tahmini", purple, purple, purple)
         status = tv("", 9f, confColor).apply {
             gravity = Gravity.CENTER
             visibility = GONE
@@ -230,19 +223,15 @@ class OverlayView(
     }
 
     @JvmOverloads
-    fun update(st: EngineState?, busy: String?, echo: Echo = Echo(0, emptyList())) {
+    fun update(st: EngineState?, busy: String?, echo: Echo = Echo(0, emptyList()), final: FinalPrediction? = null) {
         status.text = busy ?: ""
         status.visibility = if (busy == null) GONE else VISIBLE
-        fun bind(number: PredictionRow, side: PredictionRow, probs: DoubleArray?) {
-            val p = councilPrediction(probs, single = s.pairMode == 2)
-            val learning = st?.learning == true && probs != null
-            number.value.text = if (learning) "…" else p.number
-            number.confidence.text = if (learning) "${st?.count}/${s.silentFirst}" else p.numberConfidence
-            side.value.text = p.side
-            side.confidence.text = p.sideConfidence
-        }
-        bind(kotlinNumber, kotlinSide, st?.kotlinProbs)
-        bind(pythonNumber, pythonSide, st?.pythonProbs)
+        val learning = st?.learning == true
+        val p = overlayFinal(final)
+        finalNumber.value.text = if (learning && final != null) "…" else p.number
+        finalNumber.confidence.text = if (learning && final != null) "${st?.count}/${s.silentFirst}" else p.numberConfidence
+        finalSide.value.text = if (learning && final != null) "…" else p.side
+        finalSide.confidence.text = if (learning && final != null) "" else p.sideConfidence
         val values = overlayRecent(st, echo)
         recent?.text = if (values.isEmpty()) recentEmpty else values.joinToString(" ")
     }

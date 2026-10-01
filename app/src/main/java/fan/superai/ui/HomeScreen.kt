@@ -45,7 +45,7 @@ fun HomeScreen(onOverlay: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("FAN SUPER", color = C.text, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(6.dp)); Pill("v1.2")
+            Spacer(Modifier.width(6.dp)); Pill("v1.3")
             Spacer(Modifier.weight(1f))
             Pill(if (running) "● Overlay AÇIK" else "○ Overlay KAPALI", bg = if (running) C.blue else C.border,
                 fg = Color.White, onClick = onOverlay)
@@ -54,15 +54,31 @@ fun HomeScreen(onOverlay: () -> Unit) {
         pyErr?.let { Text("⚠️ $it", color = C.danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp)) }
 
         val v = st?.verdict
+        val fin by EngineHost.finalPrediction.collectAsState()
         FCard("🎯 Tahmin") {
-            if (st?.learning == true) {
+            val f = fin
+            if (f != null) {
+                if (st?.learning == true) {
+                    Text("Öğreniyor… ${st?.count}/50", color = C.muted, fontSize = 22.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                } else {
+                    Text("${f.number}", color = Color(0xFFA5D6A7), fontSize = 54.sp, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    Muted("güven ${pct(f.confidence)} · entropi ${"%.2f".format(f.entropy)} · ${f.regime}", Modifier.fillMaxWidth())
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Text("⭐ ", fontSize = 18.sp)
+                    Text(f.side.display, color = C.purple, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("  ${pct(f.sideConfidence)}", color = C.muted, fontSize = 13.sp)
+                }
+                Muted("Kilit ${f.predictionLockId} · ensemble v${f.ensembleVersion}", Modifier.fillMaxWidth().padding(top = 4.dp))
+            } else if (st?.learning == true) {
                 Text("Öğreniyor… ${st?.count}/50", color = C.muted, fontSize = 22.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             } else {
                 Text(v?.label?.replace("/", " / ") ?: "--", color = if (v?.secondary == null) Color(0xFFA5D6A7) else C.text,
                     fontSize = 54.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 Muted("güven ${v?.let { pct(it.confidence) } ?: "--"}", Modifier.fillMaxWidth().then(Modifier))
             }
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            if (f == null) Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Text("⭐ ", fontSize = 18.sp)
                 val hit = st?.lastSideHit == true
                 Text((v?.sideLabel?.replace("•", " • ") ?: "--") + if (hit) " =" else "", color = if (hit) C.lightGreen else C.purple,

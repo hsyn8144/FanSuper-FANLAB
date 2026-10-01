@@ -70,7 +70,7 @@ private fun Root(act: MainActivity) {
                 1 -> CouncilScreen()
                 2 -> DiscoveryScreen()
                 3 -> ChartScreen()
-                4 -> ResearchScreen()
+                4 -> FanLabScreen()
                 else -> SettingsScreen()
             }
         }

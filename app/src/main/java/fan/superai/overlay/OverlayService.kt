@@ -80,14 +80,15 @@ class OverlayService : LifecycleService() {
         lifecycleScope.launch {
             combine(EngineHost.state, EngineHost.busy, EngineHost.echo, Settings.flow) { st, busy, e, s ->
                 Quad(st, busy, e, s)
-            }.collect { (st, busy, e, s) ->
+            }.combine(EngineHost.finalPrediction) { q, f -> q to f }.collect { (q, fin) ->
+                val (st, busy, e, s) = q
                 val b = builtWith
                 if (b == null || b.overlayHorizontal != s.overlayHorizontal || b.overlayTextScale != s.overlayTextScale ||
                     b.overlayAlpha != s.overlayAlpha || b.showRecent != s.showRecent || b.vibrate != s.vibrate ||
                     b.pairMode != s.pairMode || b.silentFirst != s.silentFirst) {
                     buildView(s)
                 }
-                view?.update(st, busy, e)
+                view?.update(st, busy, e, fin)
             }
         }
     }

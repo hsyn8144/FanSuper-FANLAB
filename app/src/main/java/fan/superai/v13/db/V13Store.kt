@@ -13,7 +13,7 @@ import java.util.zip.CRC32
  * Kalıcılık katmanı (Room + SQLite). Her kayıtta DB baştan yazılmaz: yalnızca DEĞİŞEN durum parçaları
  * (içerik özeti farklı olanlar) yazılır; tahmin/değerlendirme tek satır güncellemesidir.
  */
-class V13Store(private val db: FanDatabase) {
+class V13Store(val db: FanDatabase) {
     private val dao = db.dao()
     private val written = HashMap<String, Long>()
 
@@ -76,7 +76,7 @@ class V13Store(private val db: FanDatabase) {
         for (e in dao.regimeStates()) m["regime_state/${e.stateKey}"] = e.blob
         for (e in dao.calibrationStates()) m["calibration_state/${e.stateKey}"] = e.blob
         for (e in dao.ensembleStates()) m["ensemble_state/${e.stateKey}"] = e.blob
-        for (e in dao.performance()) m["model_performance/${e.key}"] = e.blob
+        for (e in dao.performance()) m["model_performance/${e.stateKey}"] = e.blob
         return m
     }
 
@@ -142,6 +142,10 @@ class V13Store(private val db: FanDatabase) {
         if (withExplanation) dao.upsertExplanation(PredictionExplanationEntity(p.predictionSequence, p.predictionLockId, encode(p.explanation)))
     }
 
+    fun appendPredictions(list: List<PredictionRecordEntity>) { if (list.isNotEmpty()) dao.upsertPredictions(list) }
+
+    fun appendRecord(r: FanRecord) { dao.upsertRecords(listOf(toEntity(r))) }
+
     fun savePredictionsBatch(mode: String, list: List<PredictionRecordEntity>) {
         db.runInTransaction { dao.clearPredictions(mode); dao.upsertPredictions(list) }
     }
@@ -171,6 +175,8 @@ class V13Store(private val db: FanDatabase) {
         dao.clearActual(LIVE, count)
         dao.deleteUndoFrom(count)
     }
+
+    fun clearReplayPredictions() = db.runInTransaction { dao.clearPredictions(REPLAY) }
 
     fun clearPredictions() = db.runInTransaction { dao.clearPredictions(LIVE); dao.clearPredictions(REPLAY); dao.clearExplanations() }
 
