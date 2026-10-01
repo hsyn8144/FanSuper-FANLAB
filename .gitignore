@@ -1,0 +1,53 @@
+# Android / Gradle
+.gradle/
+**/build/
+/local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Native / generated
+.cxx/
+.externalNativeBuild/
+.cxx/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Android outputs
+*.apk
+*.aab
+captures/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Logs / reports
+*.log
+reports/
+
+# Secrets / local credentials
+*.keystore
+*.jks
+*.pem
+*.p12
+.env
+.env.*
+local.properties
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
