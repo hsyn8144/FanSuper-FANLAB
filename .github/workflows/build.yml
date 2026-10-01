@@ -76,7 +76,7 @@ jobs:
         run: |
           chmod +x gradlew
           set -o pipefail
-          ./gradlew --no-daemon testDebugUnitTest assembleDebug 2>&1 | tee build.log
+          ./gradlew --no-daemon testDebugUnitTest assembleRelease 2>&1 | tee build.log
 
       - name: Test sonuçları (annotation)
         if: always()
@@ -129,13 +129,13 @@ jobs:
           set -euo pipefail
           VERSION=$(python3 - <<'PYVERSION'
           import json
-          with open("app/build/outputs/apk/debug/output-metadata.json") as f:
+          with open("app/build/outputs/apk/release/output-metadata.json") as f:
               print(json.load(f)["elements"][0]["versionName"])
           PYVERSION
           )
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk "out/FAN_SUPER_v${VERSION}_build${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "out/FAN_SUPER_v${VERSION}_build${{ github.run_number }}.apk"
           # Yalnızca bu commit'in kaynakları; yerel ayarlar, anahtarlar, loglar ve build dosyaları yok.
           git archive --format=zip --prefix="FanSuper_v${VERSION}/" --output="out/FanSuper_v${VERSION}.zip" HEAD
           (cd out && sha256sum *.apk *.zip > SHA256SUMS.txt)
@@ -169,7 +169,7 @@ jobs:
             - Son 6 veri, en yeni solda; DEL–4–3–2–1 düğmeleri alt alta.
             - Sürükleme ve ekran sınırları; meclis motorları korunur.
 
-            **FAN_SUPER_v${{ steps.package.outputs.version }}_build${{ github.run_number }}.apk** → Android uygulaması (debug imzalı).
+            **FAN_SUPER_v${{ steps.package.outputs.version }}_build${{ github.run_number }}.apk** → Android uygulaması (release derleme).
             **FanSuper_v${{ steps.package.outputs.version }}.zip** → bu sürümün kaynak kodları.
             **SHA256SUMS.txt** → APK ve ZIP doğrulama özetleri.
           files: |
