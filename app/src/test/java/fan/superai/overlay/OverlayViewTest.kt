@@ -87,7 +87,7 @@ class OverlayViewTest {
         for (horizontal in listOf(false, true)) {
             for (recent in listOf(false, true)) {
                 val view = overlay(horizontal, recent)
-                for (label in listOf("🔵 K", "🐍 Py", "🔵 Yan", "🐍 PyYan")) {
+                for (label in listOf("RAKAM", "YAN")) {
                     drags.clear()
                     drag(view, center(view, text(view, label)))
                     assertEquals(listOf(40 to 25), drags)
@@ -127,7 +127,7 @@ class OverlayViewTest {
     @Test fun longPressKeepsOnlyFourPredictionsAndStillAllowsDragging() {
         val view = overlay()
         val before = descendants(view).size
-        val point = center(view, text(view, "🔵 K"))
+        val point = center(view, text(view, "RAKAM"))
         val time = SystemClock.uptimeMillis()
         event(view, MotionEvent.ACTION_DOWN, point, time)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout().toLong() + 1))
@@ -143,7 +143,7 @@ class OverlayViewTest {
 
     @Test fun cancelledTouchDoesNotCarryPositionIntoNextDrag() {
         val view = overlay()
-        val point = center(view, text(view, "🔵 K"))
+        val point = center(view, text(view, "RAKAM"))
         val time = SystemClock.uptimeMillis()
         event(view, MotionEvent.ACTION_DOWN, point, time)
         event(view, MotionEvent.ACTION_CANCEL, point, time)
@@ -174,32 +174,29 @@ class OverlayViewTest {
     private fun tagged(view: View, tag: String): TextView = descendants(view)
         .filterIsInstance<TextView>().first { it.tag == tag }
 
-    @Test fun fourRowsUseTheirOwnCouncilEvenWithoutARefereeVerdict() {
+    private fun testFinal(): fan.superai.v13.FinalPrediction =
+        fan.superai.v13.FanBrain().predict(emptyList(), 1_700_000_000L)
+
+    @Test fun twoRowsShowOneNumberAndOneSide() {
         for (horizontal in listOf(false, true)) {
             val view = overlay(horizontal)
-            view.update(overlayTestState(), null)
-            assertEquals("1/2", tagged(view, "kotlin.number.value").text.toString())
-            assertEquals("%87", tagged(view, "kotlin.number.confidence").text.toString())
-            assertEquals("4/3", tagged(view, "python.number.value").text.toString())
-            assertEquals("%75", tagged(view, "python.number.confidence").text.toString())
-            assertEquals("T•K", tagged(view, "kotlin.side.value").text.toString())
-            assertEquals("%84", tagged(view, "kotlin.side.confidence").text.toString())
-            assertEquals("Ç•B", tagged(view, "python.side.value").text.toString())
-            assertEquals("%68", tagged(view, "python.side.confidence").text.toString())
+            val f = testFinal()
+            view.update(overlayTestState(), null, Echo(0, emptyList()), f)
+            assertEquals("${f.number}", tagged(view, "final.number.value").text.toString())
+            assertEquals("%${(f.confidence * 100).toInt()}", tagged(view, "final.number.confidence").text.toString())
+            assertEquals(f.side.display.replace(" + ", "+"), tagged(view, "final.side.value").text.toString())
+            assertEquals("%${(f.sideConfidence * 100).toInt()}", tagged(view, "final.side.confidence").text.toString())
+            // Kotlin/Python ayrımı overlay'e taşınmaz
+            val labels = descendants(view).filterIsInstance<TextView>().map { it.text.toString() }
+            assertFalse(labels.any { it.contains("Py") || it.contains("Kotlin") || it.contains("🐍") })
         }
     }
 
-    @Test fun missingPythonAndResetClearOldPredictions() {
+    @Test fun missingFinalAndResetClearOldPredictions() {
         val view = overlay()
-        view.update(overlayTestState(), null)
-        view.update(overlayTestState().copy(pythonProbs = null), null)
-        assertEquals("1/2", tagged(view, "kotlin.number.value").text.toString())
-        for (key in listOf("python.number", "python.side")) {
-            assertEquals("--", tagged(view, "$key.value").text.toString())
-            assertEquals("--", tagged(view, "$key.confidence").text.toString())
-        }
+        view.update(overlayTestState(), null, Echo(0, emptyList()), testFinal())
         view.update(null, null)
-        for (key in listOf("kotlin.number", "python.number", "kotlin.side", "python.side")) {
+        for (key in listOf("final.number", "final.side")) {
             assertEquals("--", tagged(view, "$key.value").text.toString())
             assertEquals("--", tagged(view, "$key.confidence").text.toString())
         }
@@ -225,12 +222,11 @@ class OverlayViewTest {
         }
     }
 
-    @Test fun learningKeepsInputAvailableAndDoesNotFakePythonPrediction() {
+    @Test fun learningKeepsInputAvailable() {
         val view = overlay()
-        view.update(overlayTestState().copy(count = 12, learning = true, pythonProbs = null), null)
-        assertEquals("…", tagged(view, "kotlin.number.value").text.toString())
-        assertEquals("12/50", tagged(view, "kotlin.number.confidence").text.toString())
-        assertEquals("--", tagged(view, "python.number.value").text.toString())
+        view.update(overlayTestState().copy(count = 12, learning = true), null, Echo(0, emptyList()), testFinal())
+        assertEquals("…", tagged(view, "final.number.value").text.toString())
+        assertEquals("12/50", tagged(view, "final.number.confidence").text.toString())
         assertTrue(text(view, "1").isEnabled)
         assertTrue(text(view, "DEL").isEnabled)
     }

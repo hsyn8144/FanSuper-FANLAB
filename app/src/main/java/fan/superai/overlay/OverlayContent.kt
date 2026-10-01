@@ -3,6 +3,7 @@ package fan.superai.overlay
 import fan.superai.Echo
 import fan.superai.engine.EngineState
 import fan.superai.engine.P
+import fan.superai.v13.FinalPrediction
 
 /** Yalnızca gösterim verisi: meclisleri/hakemi eğitmez veya değiştirmez. */
 internal data class CouncilPrediction(
@@ -44,4 +45,14 @@ internal fun overlayRecent(st: EngineState?, echo: Echo): List<Int> {
         .coerceIn(0, echo.values.size)
     return ((st?.recent ?: emptyList()) + echo.values.takeLast(unprocessed))
         .takeLast(6).asReversed()
+}
+
+/** v1.3 nihai tahmin → overlay metni: tek rakam + tek yan (BS + OE), örn. "BÜYÜK+TEK". */
+internal fun overlayFinal(f: FinalPrediction?): CouncilPrediction {
+    if (f == null) return CouncilPrediction()
+    fun pct(p: Double) = "%${(p * 100).toInt()}"
+    return CouncilPrediction(
+        number = "${f.number}", numberConfidence = pct(f.confidence),
+        side = f.side.display.replace(" + ", "+"), sideConfidence = pct(f.sideConfidence)
+    )
 }
