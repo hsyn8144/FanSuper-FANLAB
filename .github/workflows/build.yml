@@ -164,10 +164,11 @@ jobs:
           name: FAN SUPER v${{ steps.package.outputs.version }} (build ${{ github.run_number }})
           body: |
             ## FAN SUPER v${{ steps.package.outputs.version }}
-            - Eski mavi overlay geri geldi; Kalıp satırı kaldırıldı.
-            - Kotlin/Python rakam ve yan tahminleri ayrı satırlarda.
-            - Son 6 veri, en yeni solda; DEL–4–3–2–1 düğmeleri alt alta.
-            - Sürükleme ve ekran sınırları; meclis motorları korunur.
+            - v1.3: tek nihai tahmin (tek rakam + tek yan) — probability-level meta-ensemble.
+            - Room/SQLite kalıcı hafıza; açılışta yalnızca yeni kayıtlar işlenir.
+            - Yan tahmin rakamdan türetilmez; Python Kalıp Arama 2.0 her iki yan eksene dahil.
+            - Replay (RESEARCH modu), sızıntı koruması, bootstrap/permutation, karşı-olgusal analiz; FAN LAB 8 sekme.
+            - Overlay tasarımı korunur: RAKAM + YAN iki satır.
 
             **FAN_SUPER_v${{ steps.package.outputs.version }}_build${{ github.run_number }}.apk** → Android uygulaması (release derleme).
             **FanSuper_v${{ steps.package.outputs.version }}.zip** → bu sürümün kaynak kodları.

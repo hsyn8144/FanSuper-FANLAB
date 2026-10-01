@@ -83,3 +83,12 @@ Python geri alma testleri (yerelde): `pip install "numpy<2"` sonra
 
 ### v1.2 FAN LAB
 The project now includes a research/validation layer that reports chronological walk-forward performance, bootstrap confidence intervals, permutation benchmarks, log loss, Brier score, entropy, calibration gap, member disagreement and Jensen-Shannon diversity. These metrics are diagnostic; they do not guarantee predictive advantage on a future random process.
+
+
+### v1.3 — meta-ensemble, kalıcı hafıza, replay
+- Tek nihai tahmin: tek rakam + tek yan (BÜYÜK/KÜÇÜK + TEK/ÇİFT). Overlay'de iki satır (RAKAM, YAN); Kotlin/Python ayrıntısı FAN LAB'da.
+- Room/SQLite kalıcı hafıza; açılışta yalnızca yeni kayıtlar işlenir; "Full Replay" yalnızca ilk kurulum, durum bozulması ya da elle.
+- Yan tahmin rakamdan türetilmez; Python Kalıp Arama 2.0 hem Büyük/Küçük hem Tek/Çift eksenine girer.
+- Replay (RESEARCH modu) sandbox'ta çalışır; sızıntı denetimi, bootstrap/permutation, baseline ve karşı-olgusal analiz içerir.
+- Ayrıntılı teknik notlar: `FANLAB_TECHNICAL_NOTES.md` (v1.3 bölümü). Hata kodları `FAN-E-*`, olay günlüğü `NEW_RECORD … REPLAY_COMPLETED`.
+- Python testleri: `pip install "numpy<2"` ardından `python app/src/test/python/test_fan_super.py -v` ve `test_fan_side.py -v`.
