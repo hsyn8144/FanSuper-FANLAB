@@ -124,6 +124,20 @@ class Council(val name: String, val members: List<Member>, private var cfg: Engi
 
     fun memberPreds(): List<DoubleArray> = lastPreds ?: members.map { P.uniform() }
 
+    /** v1.3: üye bazında son tahmin + meclis karışımındaki GERÇEK ağırlık payı (Σ = 1). */
+    class MemberView(val id: String, val name: String, val pred: DoubleArray, val share: Double)
+
+    fun memberViews(): List<MemberView> {
+        val preds = memberPreds()
+        val act = active()
+        var s = 0.0
+        for (i in members.indices) if (act[i]) s += hedge.w[i]
+        if (s <= 0) s = 1.0
+        return members.indices.map { i ->
+            MemberView(members[i].id, members[i].name, preds[i], if (act[i]) hedge.w[i] / s else 0.0)
+        }
+    }
+
     fun stats(): List<MemberStat> = members.indices.map { i ->
         MemberStat(members[i].id, members[i].name, r1[i].rate(), r2[i].rate(),
             hedge.scaled(i), benched[i], enabled(i), r1[i].count)

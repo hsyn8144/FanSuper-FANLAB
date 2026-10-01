@@ -26,6 +26,7 @@ from collections import deque
 import numpy as np
 
 import fan_members as fm
+import fan_side as fsd
 
 K = 4
 
@@ -266,8 +267,27 @@ def configure(cfg_json):
     return "ok"
 
 
-def replay(values_json, times_json):
-    """Tüm geçmişi baştan öğren. Dönüş: {"per": [...], "next": [...]}"""
+def _r6(a):
+    return [round(float(x), 6) for x in a]
+
+
+def _run_replay(c, vals, times, journal, with_members):
+    """Ortak replay döngüsü: her adımda önce tahmin, sonra gerçek sonuç (gelecek sızmaz)."""
+    members = []
+    for v, t in zip(vals, times):
+        c.predict()
+        if with_members:
+            members.append([_r6(p) for p in c.last_preds])
+        if journal:
+            _log_snap(c.capture())
+        c.learn(int(v), int(t))
+    nxt = c.predict()
+    return nxt, members
+
+
+def replay(values_json, times_json, with_members=False):
+    """Tüm geçmişi baştan öğren. Dönüş: {"per": [...], "next": [...]}
+    with_members=True ise her adım için üye bazında dağılımlar da döner (v1.3 meta-ensemble)."""
     global _council
     vals = json.loads(values_json)
     times = json.loads(times_json)
@@ -276,13 +296,43 @@ def replay(values_json, times_json):
     _checkpoints.clear()
     c = _council
     t0 = time.time()
-    for v, t in zip(vals, times):
-        c.predict()
-        _log_snap(c.capture())
-        c.learn(int(v), int(t))
-    nxt = c.predict()
+    nxt, members = _run_replay(c, vals, times, True, bool(with_members))
     c.last_ms = (time.time() - t0) * 1000.0 / max(1, len(vals))
-    return json.dumps({"per": c.per, "next": _lst(nxt)})
+    out = {"per": c.per, "next": _lst(nxt)}
+    if with_members:
+        out["ids"] = [m.id for m in c.members]
+        out["members"] = members
+    return json.dumps(out)
+
+
+def sandbox_replay(values_json, times_json, cfg_json=None):
+    """ARAŞTIRMA modu: canlı Python meclisine ve günlüklerine DOKUNMAZ.
+    Yeni bir meclis kurar, tüm geçmişi kronolojik oynatır ve üye dağılımlarını döndürür."""
+    vals = json.loads(values_json)
+    times = json.loads(times_json)
+    cfg = json.loads(cfg_json) if cfg_json else dict(_cfg)
+    c = PyCouncil(cfg)
+    nxt, members = _run_replay(c, vals, times, False, True)
+    return json.dumps({"per": c.per, "next": _lst(nxt), "ids": [m.id for m in c.members],
+                       "members": members})
+
+
+def member_info():
+    """Canlı meclisin SON tahmin edilen (bir sonraki) üye dağılımları ve ağırlık payları."""
+    if _council is None or _council.last_preds is None:
+        return "{}"
+    c = _council
+    act = [c.enabled(i) and not c.bench[i] for i in range(len(c.members))]
+    if not any(act):
+        act = [c.enabled(i) for i in range(len(c.members))]
+    wsum = sum(float(c.w[i]) for i in range(len(c.members)) if act[i]) or 1.0
+    return json.dumps({
+        "ids": [m.id for m in c.members],
+        "names": [m.name for m in c.members],
+        "preds": [_r6(p) for p in c.last_preds],
+        "share": [float(c.w[i]) / wsum if act[i] else 0.0 for i in range(len(c.members))],
+        "active": [bool(a) for a in act],
+    })
 
 
 def _step_core(v, t):
@@ -432,17 +482,156 @@ def load_state(path, values_json, times_json):
         c = d["council"]
         vals = json.loads(values_json)
         times = json.loads(times_json)
-        if c.vals != [int(x) for x in vals] or c.times != [int(x) for x in times] or d.get("cfg") != _cfg:
+        iv = [int(x) for x in vals]
+        it = [int(x) for x in times]
+        if d.get("cfg") != _cfg:
+            return ""
+        k = len(c.vals)
+        # Kayıtlı durum mevcut verinin ÖNEKİ olmalı (v1.3: yalnızca yeni kayıtlar işlenir).
+        if k > len(iv) or c.vals != iv[:k] or c.times != it[:k]:
             return ""
         _council = c
         _journal.clear()
         _checkpoints.clear()
+        tail = []
+        if k < len(iv):
+            for v, t in zip(iv[k:], it[k:]):
+                c.predict()
+                tail.append([_r6(p) for p in c.last_preds])
+                _log_snap(c.capture())
+                c.learn(int(v), int(t))
         for a in (d.get("anchors") or []):
             try:
-                if a.get("c") is c and 0 <= int(a["n"]) <= len(c.vals) and can_restore(a):
+                if k == len(iv) and a.get("c") is c and 0 <= int(a["n"]) <= len(c.vals) and can_restore(a):
                     _checkpoints.append(a)
             except Exception:
                 pass
-        return json.dumps({"per": c.per, "next": _lst(c.predict())})
+        nxt = c.predict()
+        return json.dumps({"per": c.per, "next": _lst(nxt), "cached": k, "ids": [m.id for m in c.members],
+                           "tail_members": tail})
+    except Exception:
+        return ""
+
+
+# =================================================================== v1.3 YAN MECLİSİ
+# Yan (Büyük/Küçük + Tek/Çift) tahmini rakamdan türetilmez: ayrı bir meclis, ayrı diziler.
+# Kotlin tarafı sayıyı değil, hazır yan kodlarını (bs: 0 KÜÇÜK/1 BÜYÜK, oe: 0 ÇİFT/1 TEK) gönderir.
+_side = None
+_side_ring = deque(maxlen=JOURNAL)     # undo: adım öncesi küçük görüntüler
+
+
+def _side_pack():
+    per, mix = _side.last, _side.last_mix
+    if per is None:
+        per, mix = _side.predict()
+    d = fsd.pack(_side, per, mix)
+    d["ids"] = _side.ids()
+    d["names"] = _side.names()
+    d["n"] = _side.S.n
+    return d
+
+
+def _side_run(c, bs, oe, ts, collect):
+    steps = []
+    for i, (b, o) in enumerate(zip(bs, oe)):
+        per, mix = c.predict()
+        if collect:
+            steps.append(fsd.pack(c, per, mix))
+        c.learn(int(b), int(o), int(ts[i]) if i < len(ts) else 0)
+    return steps
+
+
+def side_replay(bs_json, oe_json, times_json="[]", sandbox=False):
+    """Yan meclisini baştan öğren. sandbox=True ise canlı yan meclisine DOKUNMAZ.
+    Dönüş: {"ids", "steps": [adım başına üye dağılımları], "next": {...}}"""
+    global _side
+    bs = json.loads(bs_json)
+    oe = json.loads(oe_json)
+    ts = json.loads(times_json) if times_json else []
+    c = fsd.SideCouncil()
+    steps = _side_run(c, bs, oe, ts, True)
+    per, mix = c.predict()
+    nxt = fsd.pack(c, per, mix)
+    if not sandbox:
+        _side = c
+        _side_ring.clear()
+    return json.dumps({"ids": c.ids(), "names": c.names(), "steps": steps, "next": nxt})
+
+
+def side_next():
+    """Canlı yan meclisinin bir sonraki tahmini (JSON)."""
+    if _side is None:
+        return ""
+    return json.dumps(_side_pack())
+
+
+def side_step(bs, oe, t=0):
+    """Yeni kaydın yan kodlarını öğren; bir sonraki yan tahminini döndür (JSON)."""
+    global _side
+    if _side is None:
+        _side = fsd.SideCouncil()
+        _side.predict()
+    if _side.last is None:
+        _side.predict()
+    _side_ring.append(_side.snap())
+    _side.learn(int(bs), int(oe), int(t))
+    _side.predict()
+    return json.dumps(_side_pack())
+
+
+def side_undo_to(n):
+    """Yan meclisini tam n kayda döndür. Dönüş "" ise hedefe ulaşılamadı (Kotlin yeniden öğretir)."""
+    global _side
+    if _side is None:
+        return ""
+    n = int(n)
+    if n > _side.S.n or n < 0:
+        return ""
+    if n == _side.S.n:
+        return json.dumps(_side_pack())
+    while _side_ring and _side_ring[-1]["n"] > n:
+        _side_ring.pop()
+    if _side_ring and _side_ring[-1]["n"] == n:
+        s = _side_ring.pop()
+        if _side.restore(s):
+            _side.predict()
+            return json.dumps(_side_pack())
+    return ""
+
+
+def side_save(path):
+    import pickle
+    if _side is None:
+        return "yok"
+    with open(path, "wb") as f:
+        pickle.dump({"side": _side}, f, protocol=pickle.HIGHEST_PROTOCOL)
+    return "ok"
+
+
+def side_load(path, bs_json, oe_json):
+    """Kayıtlı yan meclisi, mevcut verinin ÖNEKİYSE yükler ve yalnızca yeni kayıtları işler.
+    Dönüş: side_next() biçimi (+ "cached") ya da ""."""
+    global _side
+    import os
+    import pickle
+    if not os.path.exists(path):
+        return ""
+    try:
+        with open(path, "rb") as f:
+            c = pickle.load(f)["side"]
+        bs = [int(x) for x in json.loads(bs_json)]
+        oe = [int(x) for x in json.loads(oe_json)]
+        k = c.S.n
+        if k > len(bs) or c.S.bs != bs[:k] or c.S.oe != oe[:k]:
+            return ""
+        for b, o in zip(bs[k:], oe[k:]):
+            c.predict()
+            c.learn(b, o)
+        c.predict()
+        _side = c
+        _side_ring.clear()
+        d = _side_pack()
+        d["cached"] = k
+        return json.dumps(d)
     except Exception:
         return ""
