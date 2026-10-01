@@ -156,6 +156,11 @@ private fun OverviewTab(ins: V13Insights?, fin: FinalPrediction?) {
     }
     fin?.let { ExplanationCards(it.explanation) }
     PredictionHistory()
+    FCard("Olay günlüğü (son 12)") {
+        val ev = fan.superai.v13.FanLog.recent(12)
+        if (ev.isEmpty()) Muted("Henüz olay yok")
+        ev.asReversed().forEach { Mono("${it.event} ${it.message}".take(90), color = if (it.event == "ERROR") C.danger else C.muted, size = 10) }
+    }
     Muted("— v1.2 araştırma (walk-forward) —", Modifier.padding(top = 10.dp, bottom = 4.dp))
     ResearchContent()
 }

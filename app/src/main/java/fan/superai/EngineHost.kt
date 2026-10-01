@@ -211,6 +211,9 @@ object EngineHost {
     fun init(ctx: Context) {
         app = ctx.applicationContext
         try { v13 = V13Runtime(V13Store(FanDatabase.get(app))) } catch (e: Throwable) { Log.e(TAG, "v13 db", e) }
+        fan.superai.v13.FanLog.sink = { name, msg ->
+            if (name == fan.superai.v13.FanLog.ERROR) Log.w("FAN_V13", "$name $msg") else Log.i("FAN_V13", "$name $msg")
+        }
         exec.execute {
             try {
                 val s = Settings.value
