@@ -3,6 +3,9 @@ package fan.superai.overlay
 import fan.superai.Echo
 import fan.superai.engine.EngineState
 import fan.superai.engine.Scores
+import fan.superai.v13.FanBrain
+import fan.superai.v13.Group
+import fan.superai.v13.ModelOutput
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -47,6 +50,48 @@ class OverlayContentTest {
     @Test fun tiesHaveStableNumberAndSideOrdering() {
         assertEquals(CouncilPrediction("1/2", "%50", "T•B", "%50"),
             councilPrediction(DoubleArray(4) { .25 }))
+    }
+
+    // ------------------------------------------------------------------ v1.4
+
+    private fun finalWithGroups(pairMode: Int = 2) = FanBrain().predict(listOf(
+        ModelOutput("k_kalip2", "Kotlin · Kalıp", Group.KOTLIN, number = doubleArrayOf(.7, .1, .1, .1)),
+        ModelOutput("py_lstm", "Python · LSTM", Group.PYTHON, number = doubleArrayOf(.1, .1, .1, .7))
+    ), 1_700_000_000L, pairMode)
+
+    /** Üst iki satır meclislerin kendi grup karışımından gelir; Python yoksa satır "--" olur. */
+    @Test fun councilRowsComeFromEachGroupAndNeverFromTheReferee() {
+        val f = finalWithGroups(pairMode = 2)
+        assertEquals(CouncilPrediction("1", "%70", "T•K", "%80"), overlayKotlinRow(f))
+        assertEquals(CouncilPrediction("4", "%70", "Ç•B", "%80"), overlayPythonRow(f))
+        assertEquals(CouncilPrediction(), overlayPythonRow(FanBrain().predict(listOf(
+            ModelOutput("k_kalip2", "Kotlin · Kalıp", Group.KOTLIN, number = doubleArrayOf(.7, .1, .1, .1))
+        ), 1_700_000_000L, 2)))
+        assertEquals(CouncilPrediction(), overlayKotlinRow(null))
+        assertEquals(CouncilPrediction(), overlayPythonRow(null))
+    }
+
+    /** Nihai satır: tek/çift kararına göre "1" ya da "1/2" ve KISA yan (B•T), uzun "BÜYÜK + TEK" değil. */
+    @Test fun finalRowsUsePairNumberAndShortSide() {
+        val single = overlayFinal(finalWithGroups(pairMode = 2))
+        assertFalse(single.number.contains("/"))
+        assertEquals(finalWithGroups(pairMode = 2).sideShort, single.side)
+        assertTrue(listOf("B•T", "B•Ç", "K•T", "K•Ç").contains(single.side))
+        assertFalse(single.side.contains("+"))
+        val pair = overlayFinal(finalWithGroups(pairMode = 1))
+        assertTrue(pair.number.contains("/"))
+        assertEquals("1/4", pair.number)
+        assertEquals(CouncilPrediction(), overlayFinal(null))
+    }
+
+    /** Çift kararda meclis satırları iki aday gösterir; tek kararda yalnızca ilkini. */
+    @Test fun councilRowCandidateCountFollowsTheFinalPairDecision() {
+        val pair = finalWithGroups(pairMode = 1)
+        assertTrue(overlayKotlinRow(pair).number.contains("/"))
+        assertTrue(overlayPythonRow(pair).number.contains("/"))
+        val single = finalWithGroups(pairMode = 2)
+        assertFalse(overlayKotlinRow(single).number.contains("/"))
+        assertFalse(overlayPythonRow(single).number.contains("/"))
     }
 
     @Test fun emptyAndPartialHistoryDoNotInventRecords() {

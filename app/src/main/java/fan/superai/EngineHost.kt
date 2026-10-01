@@ -156,7 +156,7 @@ object EngineHost {
         val plan = v13Plan ?: return
         v13Plan = null
         try {
-            _busy.value = "🧠 v1.3 meta-ensemble hazırlanıyor…"
+            _busy.value = "🧠 v1.4 meta-ensemble hazırlanıyor…"
             rt.finish(plan, v13Env(), clearHistory)
         } catch (e: Throwable) { Log.e(TAG, "v13 finish", e) }
         bridge?.captureMembers = false

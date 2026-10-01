@@ -77,6 +77,31 @@ class RollBits(private val cap: Int = 100) {
     fun read(i: In) { val b = i.ba(); if (b.size != cap) throw FanException(ErrorCodes.STATE_LOAD, "roll"); b.copyInto(buf); count = i.i(); pos = i.i(); hits = i.i() }
 }
 
+/**
+ * Konformal tek/çift kararı için sabit boyutlu skor halkası (v1.4).
+ * Skor = 1 − p[gerçek]; halka dolduğunda en eski skor düşer, böylece karar son 300
+ * değerlendirmeyi yansıtır (v1.1 hakemindeki `scoreCap = 300` ile aynı pencere).
+ */
+class ScoreRing(private val cap: Int = 300) {
+    private val buf = DoubleArray(cap)
+    var count = 0; private set
+    private var pos = 0
+
+    fun add(v: Double) {
+        buf[pos] = if (v.isNaN()) 1.0 else v
+        pos = (pos + 1) % cap
+        if (count < cap) count++
+    }
+
+    /** Skorlar (sıra önemsiz; yalnızca dağılım kullanılır). */
+    fun values(): DoubleArray = if (count == 0) DoubleArray(0) else DoubleArray(count) { buf[(pos - count + it + cap) % cap] }
+
+    fun clear() { buf.fill(0.0); count = 0; pos = 0 }
+
+    fun write(o: Out) { o.da(buf); o.i(count); o.i(pos) }
+    fun read(i: In) { i.fill(buf); count = i.i(); pos = i.i() }
+}
+
 /** Bir modelin (bir eksendeki) kalıcı performans durumu. */
 class ModelTracker(val k: Int) {
     companion object {

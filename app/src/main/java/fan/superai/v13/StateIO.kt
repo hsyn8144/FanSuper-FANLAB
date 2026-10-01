@@ -34,6 +34,8 @@ class In(data: ByteArray) {
     fun ia(): IntArray = IntArray(d.readInt()) { d.readInt() }
     fun ba(): BooleanArray = BooleanArray(d.readInt()) { d.readBoolean() }
     fun bytes(): ByteArray { val n = d.readInt(); val a = ByteArray(n); d.readFully(a); return a }
+    /** Okunmayı bekleyen bayt sayısı (sürüm yükseltmelerinde isteğe bağlı alanlar için). */
+    fun left(): Int = d.available()
     /** Mevcut diziyi yerinde doldurur (boyut uyuşmazsa hata). */
     fun fill(target: DoubleArray) {
         val a = da()

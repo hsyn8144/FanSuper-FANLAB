@@ -114,8 +114,15 @@ class AxisInput(
     val size: Int get() = ids.size
 }
 
-/** Tahmin anında bilinen her şey. Kilitle birlikte saklanır; karşı-olgusal analiz bunu kullanır. */
-class PredictionContext(val axes: Array<AxisInput>, val regime: Int, val blendProduct: Double) {
+/**
+ * Tahmin anında bilinen her şey. Kilitle birlikte saklanır; karşı-olgusal analiz bunu kullanır.
+ * [pairMode]: 0 otomatik (konformal), 1 her zaman çift, 2 her zaman tek — v1.4'te kilitli
+ * tahminin kaç rakam gösterdiğini belirleyen ayar; kilitle saklanır ki geri yüklemede aynı
+ * gösterim yeniden üretilsin.
+ */
+class PredictionContext(
+    val axes: Array<AxisInput>, val regime: Int, val blendProduct: Double, val pairMode: Int = 0
+) {
     fun axis(a: Axis) = axes[a.ordinal]
 }
 
@@ -136,7 +143,15 @@ data class PredictionExplanation(
     }
 }
 
-/** Sistemin dışarı verdiği TEK nihai sonuç. Kotlin/Python ayrıntıları metadata altındadır. */
+/**
+ * Sistemin dışarı verdiği TEK nihai sonuç. Kotlin/Python ayrıntıları metadata altındadır.
+ *
+ * v1.4 ek alanları (kilit geri yüklenirken [FanBrain] tarafından yeniden üretilir, ayrıca
+ * saklanmaz):
+ *  - [numberSecondary]: çift (2 rakam) kararında ikinci aday; null → gösterim tek rakam.
+ *  - [kotlinNumberProbs] / [pythonNumberProbs]: meclislerin rakam eksenindeki grup karışımı
+ *    (overlay'in K ve Py satırları). Python yoksa null → "--".
+ */
 class FinalPrediction(
     val number: Int,
     val numberDistribution: PredictionDistribution,
@@ -155,10 +170,17 @@ class FinalPrediction(
     val lastKnownRecordId: Long,
     val lockHash: Long,
     val contributions: List<ModelContribution>,
-    val explanation: PredictionExplanation
+    val explanation: PredictionExplanation,
+    val numberSecondary: Int? = null,
+    val kotlinNumberProbs: DoubleArray? = null,
+    val pythonNumberProbs: DoubleArray? = null
 ) {
     val side: CombinedSide get() = CombinedSide.of(bigSmall, oddEven)
     val sideDisplay: String get() = side.display
+    /** Çift kararda "1/2", tek kararda "1" — overlay ve ana ekran rakam satırı. */
+    val numberLabel: String get() = if (numberSecondary == null) "$number" else "$number/$numberSecondary"
+    /** Kısa yan gösterimi: "B•T" / "K•Ç" gibi (v1.4 overlay yan satırı). */
+    val sideShort: String get() = (if (bigSmall == BigSmall.BIG) "B" else "K") + "•" + (if (oddEven == OddEven.ODD) "T" else "Ç")
 }
 
 /** Değerlendirme sonucu: tahmin kaydını DEĞİŞTİRMEZ, ayrı bir kayıttır. */

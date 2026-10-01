@@ -60,6 +60,16 @@ object Settings {
         _flow.value = load()
     }
 
+    /**
+     * Yedeğe düşme eşiği (yüzdelik ayar) TAM saklanır. Float olarak yazılırsa 0.18 değeri
+     * 0.18000000715255737'ye döner; Ayarlar ekranı bu ham değeri gösteriyordu. v1.4'ten
+     * itibaren metin olarak yazılır; eski kurulumlardaki Float değer de okunur.
+     */
+    private fun loadBenchThreshold(p: SharedPreferences, def: Double): Double {
+        try { p.getString("bench", null)?.toDoubleOrNull()?.let { return it } } catch (_: ClassCastException) {}
+        return try { p.getFloat("bench", def.toFloat()).toDouble() } catch (_: ClassCastException) { def }
+    }
+
     private fun load(): AppSettings {
         val d = AppSettings()
         return AppSettings(
@@ -67,7 +77,7 @@ object Settings {
             silentFirst = prefs.getInt("silentFirst", d.silentFirst),
             calibration = prefs.getBoolean("calibration", d.calibration),
             window = prefs.getInt("window", d.window),
-            benchThreshold = prefs.getFloat("bench", d.benchThreshold.toFloat()).toDouble(),
+            benchThreshold = loadBenchThreshold(prefs, d.benchThreshold),
             fixedShare = prefs.getBoolean("fixedShare", d.fixedShare),
             stacking = prefs.getBoolean("stacking", d.stacking),
             forgetting = prefs.getInt("forgetting", d.forgetting),
@@ -90,7 +100,7 @@ object Settings {
         val s = f(_flow.value)
         prefs.edit().apply {
             putInt("pairMode", s.pairMode); putInt("silentFirst", s.silentFirst); putBoolean("calibration", s.calibration)
-            putInt("window", s.window); putFloat("bench", s.benchThreshold.toFloat()); putBoolean("fixedShare", s.fixedShare)
+            putInt("window", s.window); putString("bench", s.benchThreshold.toString()); putBoolean("fixedShare", s.fixedShare)
             putBoolean("stacking", s.stacking); putInt("forgetting", s.forgetting); putStringSet("disabled", s.disabled)
             putBoolean("python", s.pythonEnabled); putBoolean("dl", s.dlEnabled); putBoolean("battery", s.battery)
             putBoolean("ovH", s.overlayHorizontal); putBoolean("ovDetail", s.overlayDetail); putFloat("ovAlpha", s.overlayAlpha)

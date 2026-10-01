@@ -121,10 +121,10 @@ private fun ExplanationCards(e: PredictionExplanation) {
 @Composable
 private fun OverviewTab(ins: V13Insights?, fin: FinalPrediction?) {
     val status by EngineHost.v13Status.collectAsState()
-    FCard("🧠 v1.3 Meta-Ensemble · nihai tahmin") {
+    FCard("🧠 v1.4 Meta-Ensemble · nihai tahmin") {
         if (fin == null) Muted(status.error ?: status.message.ifEmpty { "Hazırlanıyor…" })
         else {
-            KV("Rakam", "${fin.number}  (güven ${pct(fin.confidence)})")
+            KV("Rakam", "${fin.numberLabel}  (güven ${pct(fin.confidence)})")
             KV("Yan", "${fin.side.display}  (güven ${pct(fin.sideConfidence)})")
             KV("Entropi", f3(fin.entropy))
             KV("Rejim", fin.regime)
@@ -137,7 +137,7 @@ private fun OverviewTab(ins: V13Insights?, fin: FinalPrediction?) {
     }
     ins?.let { x ->
         val s = x.stats
-        FCard("Başarı (v1.3 nihai, n=${s.total}) · baseline'larla") {
+        FCard("Başarı (v1.4 nihai, n=${s.total}) · baseline'larla") {
             @Composable fun row(k: String, v: Double, base: Double, causal: Double) =
                 KV(k, "${pct(v)} · şans ${pct(base)} · çoğunluk ${pct(causal)}", vColor = if (s.total < 30) C.text else if (v > base + 0.02) C.lightGreen else if (v < base - 0.02) C.danger else C.text)
             row("Rakam Top-1", s.numberAcc, 0.25, s.baseNumber)

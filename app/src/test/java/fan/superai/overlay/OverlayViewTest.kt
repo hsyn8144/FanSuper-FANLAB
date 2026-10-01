@@ -87,7 +87,7 @@ class OverlayViewTest {
         for (horizontal in listOf(false, true)) {
             for (recent in listOf(false, true)) {
                 val view = overlay(horizontal, recent)
-                for (label in listOf("RAKAM", "YAN")) {
+                for (label in listOf("K", "Py", "YAN", "RAKAM")) {
                     drags.clear()
                     drag(view, center(view, text(view, label)))
                     assertEquals(listOf(40 to 25), drags)
@@ -174,29 +174,59 @@ class OverlayViewTest {
     private fun tagged(view: View, tag: String): TextView = descendants(view)
         .filterIsInstance<TextView>().first { it.tag == tag }
 
-    private fun testFinal(): fan.superai.v13.FinalPrediction =
-        fan.superai.v13.FanBrain().predict(emptyList(), 1_700_000_000L)
+    /** v1.4 kilitli tahmin örneği: bir Kotlin, bir Python rakam modeli (her zaman tek karar). */
+    private fun testFinal(pairMode: Int = 2): fan.superai.v13.FinalPrediction =
+        fan.superai.v13.FanBrain().predict(listOf(
+            fan.superai.v13.ModelOutput("k_kalip2", "Kotlin · Kalıp",
+                fan.superai.v13.Group.KOTLIN, number = doubleArrayOf(.7, .1, .1, .1)),
+            fan.superai.v13.ModelOutput("py_lstm", "Python · LSTM",
+                fan.superai.v13.Group.PYTHON, number = doubleArrayOf(.1, .1, .1, .7))
+        ), 1_700_000_000L, pairMode)
 
-    @Test fun twoRowsShowOneNumberAndOneSide() {
+    /** v1.4 dört satır: K → Py → YAN (kısa) → RAKAM (nihai). */
+    @Test fun fourRowsShowCouncilsThenCompactSideAndFinalNumber() {
         for (horizontal in listOf(false, true)) {
             val view = overlay(horizontal)
             val f = testFinal()
             view.update(overlayTestState(), null, Echo(0, emptyList()), f)
-            assertEquals("${f.number}", tagged(view, "final.number.value").text.toString())
-            assertEquals("%${(f.confidence * 100).toInt()}", tagged(view, "final.number.confidence").text.toString())
-            assertEquals(f.side.display.replace(" + ", "+"), tagged(view, "final.side.value").text.toString())
+            assertEquals("1", tagged(view, "kotlin.number.value").text.toString())
+            assertEquals("%70", tagged(view, "kotlin.number.confidence").text.toString())
+            assertEquals("4", tagged(view, "python.number.value").text.toString())
+            assertEquals("%70", tagged(view, "python.number.confidence").text.toString())
+            assertEquals(f.sideShort, tagged(view, "final.side.value").text.toString())
             assertEquals("%${(f.sideConfidence * 100).toInt()}", tagged(view, "final.side.confidence").text.toString())
-            // Kotlin/Python ayrımı overlay'e taşınmaz
+            assertEquals(f.numberLabel, tagged(view, "final.number.value").text.toString())
+            assertEquals("%${(f.confidence * 100).toInt()}", tagged(view, "final.number.confidence").text.toString())
+            // Yan satırı artık uzun "BÜYÜK + TEK" yazmaz; K/Py satırları kendi meclisinden gelir.
             val labels = descendants(view).filterIsInstance<TextView>().map { it.text.toString() }
-            assertFalse(labels.any { it.contains("Py") || it.contains("Kotlin") || it.contains("🐍") })
+            assertFalse(labels.any { it.contains("BÜYÜK") || it.contains("+") })
+            assertFalse(labels.any { it.contains("Kalıp") || it.contains("Hakem") })
         }
+    }
+
+    @Test fun rowOrderIsKotlinPythonSideThenFinal() {
+        val view = overlay()
+        val y = { label: String -> center(view, text(view, label)).second }
+        assertTrue("K en üstte", y("K") < y("Py"))
+        assertTrue("Py, YAN'ın üstünde", y("Py") < y("YAN"))
+        assertTrue("YAN, RAKAM'ın üstünde", y("YAN") < y("RAKAM"))
+        assertTrue("RAKAM, son sayıların üstünde", y("RAKAM") < center(view, tagged(view, "recent")).second)
+    }
+
+    /** Çift kararda nihai rakam satırı iki adayı gösterir. */
+    @Test fun pairDecisionShowsTwoCandidatesInTheFinalRow() {
+        val view = overlay()
+        val f = testFinal(pairMode = 1)
+        assertNotNull(f.numberSecondary)
+        view.update(overlayTestState(), null, Echo(0, emptyList()), f)
+        assertEquals("1/4", tagged(view, "final.number.value").text.toString())
     }
 
     @Test fun missingFinalAndResetClearOldPredictions() {
         val view = overlay()
         view.update(overlayTestState(), null, Echo(0, emptyList()), testFinal())
         view.update(null, null)
-        for (key in listOf("final.number", "final.side")) {
+        for (key in listOf("kotlin.number", "python.number", "final.number", "final.side")) {
             assertEquals("--", tagged(view, "$key.value").text.toString())
             assertEquals("--", tagged(view, "$key.confidence").text.toString())
         }
@@ -225,7 +255,9 @@ class OverlayViewTest {
     @Test fun learningKeepsInputAvailable() {
         val view = overlay()
         view.update(overlayTestState().copy(count = 12, learning = true), null, Echo(0, emptyList()), testFinal())
-        assertEquals("…", tagged(view, "final.number.value").text.toString())
+        for (key in listOf("kotlin.number", "python.number", "final.number", "final.side")) {
+            assertEquals("…", tagged(view, "$key.value").text.toString())
+        }
         assertEquals("12/50", tagged(view, "final.number.confidence").text.toString())
         assertTrue(text(view, "1").isEnabled)
         assertTrue(text(view, "DEL").isEnabled)

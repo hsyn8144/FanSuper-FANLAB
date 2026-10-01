@@ -18,15 +18,16 @@ import fan.superai.v13.FinalPrediction
 import kotlin.math.abs
 
 /**
- * Onaylanan v9.6 mavi kartı (v1.3: aynı stil, iki satır):
- *   RAKAM   tek nihai rakam tahmini (meta-ensemble)
- *   YAN     tek nihai yan tahmini (örn. BÜYÜK+TEK)
+ * Onaylanan v9.6 mavi kartı (v1.4: aynı stil, dört satır):
+ *   K       Kotlin meclisinin rakam tahmini ("1/2" gibi)
+ *   Py      Python meclisinin rakam tahmini (yoksa "--")
+ *   YAN     nihai yan tahmini, KISA (örn. "B•T" / "K•Ç")
+ *   RAKAM   nihai rakam tahmini (v1.4: çift kararda "1/2")
  *   son 6 sayı (en yeni solda)
  *   DEL / 4 / 3 / 2 / 1 (alt alta)
  *
  * Yatay ayarı korunur: aynı satırlar solda, düğmeler sağda.
- * Kotlin/Python ayrımı ve tüm detaylar FAN LAB'da kalır. Tahmin alanı ve kart kenarları
- * sürüklenebilir; veri düğmeleri sürükleme dinleyicisine bağlanmaz.
+ * Tahmin alanı ve kart kenarları sürüklenebilir; veri düğmeleri sürükleme dinleyicisine bağlanmaz.
  */
 @SuppressLint("ViewConstructor", "SetTextI18n", "ClickableViewAccessibility")
 class OverlayView(
@@ -45,8 +46,12 @@ class OverlayView(
     private val purple = Color.parseColor("#CE93D8")
 
     private data class PredictionRow(val value: TextView, val confidence: TextView)
-    private lateinit var finalNumber: PredictionRow
+    private lateinit var kotlinRow: PredictionRow
+    private lateinit var pythonRow: PredictionRow
     private lateinit var finalSide: PredictionRow
+    private lateinit var finalNumber: PredictionRow
+    private lateinit var panelBox: LinearLayout
+    private lateinit var buttonBox: LinearLayout
     private var recent: TextView? = null
     private lateinit var status: TextView
     private val recentEmpty = "- - - - - -"
@@ -93,26 +98,47 @@ class OverlayView(
         setPadding(dp(10), dp(10), dp(10), dp(10))
         setOnTouchListener(dragListener)
         val panel = buildPredictionPanel()
+        panelBox = panel
         if (s.overlayHorizontal) {
             addView(panel, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-            addView(buttons(true), LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+            buttonBox = buttons(true)
+            addView(buttonBox, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
                 leftMargin = dp(8)
             })
         } else {
             addView(panel, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-            // Ağırlık kısa ekranlarda düğme grubunun daralmasını sağlar. Dört tahmin
-            // satırı yerinde kalır, alttaki 1 düğmesi ekran dışına itilmez.
-            addView(buttons(false), LayoutParams(LayoutParams.MATCH_PARENT, scaledDp(220), 1f))
+            buttonBox = buttons(false)
+            addView(buttonBox, LayoutParams(LayoutParams.MATCH_PARENT, scaledDp(220), 1f))
         }
     }
 
-    /** Sabit kompakt genişlik: tahmin değiştikçe kartın eni/konumu oynamaz. */
+    /**
+     * Sabit kompakt genişlik: tahmin değiştikçe kartın eni/konumu oynamaz.
+     * Dikey görünümde düğme grubu PANELDEN ARTA KALAN yüksekliği alır (en fazla 220dp);
+     * böylece v1.4'te eklenen dört tahmin satırıyla birlikte kısa ekranlarda da DEL/1/2/3/4
+     * düğmeleri kartın (ve ekranın) dışına taşmaz.
+     */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val dm = resources.displayMetrics
         fun limit(spec: Int, screen: Int): Int = if (MeasureSpec.getMode(spec) == MeasureSpec.UNSPECIFIED)
             screen else minOf(screen, MeasureSpec.getSize(spec))
         val width = minOf(scaledDp(if (s.overlayHorizontal) 380 else 148), limit(widthMeasureSpec, dm.widthPixels))
         val height = limit(heightMeasureSpec, dm.heightPixels)
+        if (!s.overlayHorizontal) {
+            val inner = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+            panelBox.measure(
+                MeasureSpec.makeMeasureSpec(inner, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST)
+            )
+            val room = (height - paddingTop - paddingBottom - panelBox.measuredHeight)
+                .coerceAtLeast(scaledDp(90))
+            val want = minOf(scaledDp(220), room)
+            val lp = buttonBox.layoutParams as LayoutParams
+            if (lp.height != want) {
+                lp.height = want
+                buttonBox.layoutParams = lp
+            }
+        }
         super.onMeasure(
             MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST)
@@ -159,9 +185,13 @@ class OverlayView(
     private fun buildPredictionPanel() = LinearLayout(context).apply {
         orientation = VERTICAL
         setOnTouchListener(dragListener)
+        // v1.4 sırası: Kotlin rakam → Python rakam → kısa yan → nihai rakam.
+        kotlinRow = predictionRow("kotlin.number", "K", "Kotlin rakam tahmini",
+            Color.parseColor("#64B5F6"), Color.WHITE, confColor)
+        pythonRow = predictionRow("python.number", "Py", "Python rakam tahmini", green, Color.WHITE, confColor)
+        finalSide = predictionRow("final.side", "YAN", "Nihai yan tahmini (kısa)", purple, purple, purple)
         finalNumber = predictionRow("final.number", "RAKAM", "Nihai rakam tahmini",
             Color.parseColor("#64B5F6"), Color.WHITE, confColor)
-        finalSide = predictionRow("final.side", "YAN", "Nihai yan tahmini", purple, purple, purple)
         status = tv("", 9f, confColor).apply {
             gravity = Gravity.CENTER
             visibility = GONE
@@ -227,11 +257,19 @@ class OverlayView(
         status.text = busy ?: ""
         status.visibility = if (busy == null) GONE else VISIBLE
         val learning = st?.learning == true
+        // Öğrenme turunda (ilk sessiz tur) dört satır da "…" gösterir; veri girişi açık kalır.
+        val hide = learning && final != null
+        val k = overlayKotlinRow(final)
+        val py = overlayPythonRow(final)
         val p = overlayFinal(final)
-        finalNumber.value.text = if (learning && final != null) "…" else p.number
-        finalNumber.confidence.text = if (learning && final != null) "${st?.count}/${s.silentFirst}" else p.numberConfidence
-        finalSide.value.text = if (learning && final != null) "…" else p.side
-        finalSide.confidence.text = if (learning && final != null) "" else p.sideConfidence
+        kotlinRow.value.text = if (hide) "…" else k.number
+        kotlinRow.confidence.text = if (hide) "" else k.numberConfidence
+        pythonRow.value.text = if (hide) "…" else py.number
+        pythonRow.confidence.text = if (hide) "" else py.numberConfidence
+        finalNumber.value.text = if (hide) "…" else p.number
+        finalNumber.confidence.text = if (hide) "${st?.count}/${s.silentFirst}" else p.numberConfidence
+        finalSide.value.text = if (hide) "…" else p.side
+        finalSide.confidence.text = if (hide) "" else p.sideConfidence
         val values = overlayRecent(st, echo)
         recent?.text = if (values.isEmpty()) recentEmpty else values.joinToString(" ")
     }
