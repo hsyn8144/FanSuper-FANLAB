@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lightning Roulette AI</string>
+    <string name="overlay_channel">Overlay (sonuç girişi)</string>
+    <string name="lab_channel">LAB deneyleri</string>
+    <string name="overlay_running">Overlay çalışıyor</string>
+</resources>

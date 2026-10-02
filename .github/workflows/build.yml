@@ -3,7 +3,13 @@ name: FAN SUPER Build
 on:
   push:
     branches: [ main, "arena/**" ]
+    paths-ignore:
+      - "LightningRouletteAI/**"
+      - ".github/workflows/lightning-build.yml"
   pull_request:
+    paths-ignore:
+      - "LightningRouletteAI/**"
+      - ".github/workflows/lightning-build.yml"
   workflow_dispatch:
 
 permissions:
