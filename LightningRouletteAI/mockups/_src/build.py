@@ -54,7 +54,7 @@ def cmd_html(only=None):
     manifest = []
     for i, m in numbered(lib):
         slug = f'{i:02d}_{m["slug"]}'
-        manifest.append(dict(file=slug, no=i, section=m['section'], title=m['title'], sub=m['sub'], slug=m['slug']))
+        manifest.append(dict(file=slug, no=i, section=m['section'], title=m['title'], sub=m['sub'], slug=m['slug'], width=m.get('width') or 480))
         if only and not any(o in slug for o in only):
             continue
         body = m['fn']()
@@ -93,7 +93,7 @@ def cmd_readme():
     L.append('## İndir\n')
     L.append('| Dosya | Ne işe yarar |\n|---|---|')
     L.append('| [`LightningRouletteAI_Tasarim_Katalogu.pdf`](LightningRouletteAI_Tasarim_Katalogu.pdf) | Tüm sayfalar tek PDF (telefonda kaydırarak gez) |')
-    L.append('| [`LightningRouletteAI_Gorseller.zip`](LightningRouletteAI_Gorseller.zip) | Tüm PNG dosyaları (960 px genişlik) tek ZIP |')
+    L.append('| [`LightningRouletteAI_Gorseller.zip`](LightningRouletteAI_Gorseller.zip) | Tüm PNG dosyaları tek ZIP (PDF ayrı dosyadır) |')
     L.append('| [`png/`](png) | Tek tek tam çözünürlüklü PNG sayfaları |\n')
     L.append(f'**Toplam {len(man)} sayfa.** Küçük resme dokununca tam boyutlu görsel açılır.\n')
     L.append('## İçindekiler\n')
@@ -123,9 +123,6 @@ def cmd_zip():
     with zipfile.ZipFile(zp, 'w', zipfile.ZIP_STORED) as z:  # PNG zaten sıkışık
         for p in sorted(glob.glob(os.path.join(ROOT, 'png', '*.png'))):
             z.write(p, 'LightningRouletteAI_Gorseller/' + os.path.basename(p))
-        pdf = os.path.join(ROOT, 'LightningRouletteAI_Tasarim_Katalogu.pdf')
-        if os.path.exists(pdf):
-            z.write(pdf, 'LightningRouletteAI_Gorseller/LightningRouletteAI_Tasarim_Katalogu.pdf')
         rd = os.path.join(ROOT, 'README.md')
         if os.path.exists(rd):
             z.write(rd, 'LightningRouletteAI_Gorseller/README.md')

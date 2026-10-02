@@ -26,11 +26,12 @@ if (filters.length) files = files.filter(f => filters.some(x => f.includes(x)));
 
 const browser = await puppeteer.launch({ args: chromium.args, executablePath: await chromium.executablePath(), headless: 'shell' });
 const heights = fs.existsSync(path.join(buildDir, 'heights.json')) ? JSON.parse(fs.readFileSync(path.join(buildDir, 'heights.json'), 'utf8')) : {};
+const widths = fs.existsSync(path.join(buildDir, 'widths.json')) ? JSON.parse(fs.readFileSync(path.join(buildDir, 'widths.json'), 'utf8')) : {};
 let problems = 0;
 
 async function openPage(f) {
   const page = await browser.newPage();
-  await page.setViewport({ width: 480, height: 1000, deviceScaleFactor: 2 });
+  await page.setViewport({ width: 1000, height: 1000, deviceScaleFactor: 2 });
   await page.goto(pathToFileURL(path.join(buildDir, f + '.html')).href, { waitUntil: 'load' });
   await page.waitForFunction('window.__ready === true', { timeout: 20000 });
   return page;
@@ -42,7 +43,7 @@ if (mode === 'png' || mode === 'all') {
     const box = await page.evaluate(() => { const r = document.getElementById('sheet').getBoundingClientRect(); return { w: Math.ceil(r.width), h: Math.ceil(r.height) }; });
     const audit = await page.evaluate(() => window.__audit);
     await page.screenshot({ path: path.join(pngDir, f + '.png'), clip: { x: 0, y: 0, width: box.w, height: box.h }, captureBeyondViewport: true });
-    heights[f] = box.h;
+    heights[f] = box.h; widths[f] = box.w;
     fs.writeFileSync(path.join(buildDir, f + '.frag.html'), await page.evaluate(() => document.getElementById('sheet').outerHTML));
     const issues = [...(audit.missingLegend || []).map(x => 'AÇIKLAMASIZ rozet ' + x), ...(audit.extraLegend || []).map(x => 'ROZETSİZ açıklama ' + x), ...(audit.overflow || [])];
     problems += issues.length;
@@ -51,6 +52,7 @@ if (mode === 'png' || mode === 'all') {
     await page.close();
   }
   fs.writeFileSync(path.join(buildDir, 'heights.json'), JSON.stringify(heights));
+  fs.writeFileSync(path.join(buildDir, 'widths.json'), JSON.stringify(widths));
 }
 
 if (mode === 'pdf' || mode === 'all') {
@@ -64,7 +66,8 @@ if (mode === 'pdf' || mode === 'all') {
     const fragPath = path.join(buildDir, f + '.frag.html');
     if (!fs.existsSync(fragPath)) { console.log('PDF için parça yok:', f); continue; }
     const body = fs.readFileSync(fragPath, 'utf8').replace('id="sheet"', '');
-    css += `@page p${parts.length}{size:480px ${h}px;margin:0}.pg${parts.length}{page:p${parts.length};break-after:page;width:480px;height:${h}px;overflow:hidden}\n`;
+    const w = widths[f] || 480;
+    css += `@page p${parts.length}{size:${w}px ${h}px;margin:0}.pg${parts.length}{page:p${parts.length};break-after:page;width:${w}px;height:${h}px;overflow:hidden}\n`;
     parts.push(`<div class="pg${parts.length}">${body}</div>`);
   }
   const first = fs.readFileSync(path.join(buildDir, all[0] + '.html'), 'utf8');

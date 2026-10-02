@@ -283,17 +283,21 @@ def svg_hist(counts, w=340, h=110, marker=None, color='#3F6FB5', labels=None, ml
     return ''.join(o)
 
 def svg_gauge(value, w=220, label='ROBUSTNESS', cls='C'):
-    cx, cy, r = w / 2, w * 0.52, w * 0.4
-    o = [f'<svg width="{w}" height="{int(w * 0.62)}" viewBox="0 0 {w} {int(w * 0.62)}" xmlns="http://www.w3.org/2000/svg">']
+    cx, cy, r = w / 2, w * 0.50, w * 0.4
+    H = int(w * 0.86)
+    o = [f'<svg width="{w}" height="{H}" viewBox="0 0 {w} {H}" xmlns="http://www.w3.org/2000/svg">']
     zones = [(0, 20, '#C62828'), (20, 40, '#EF8F00'), (40, 60, '#78909C'), (60, 80, '#7CB342'), (80, 100, '#2E7D32')]
     for a, b, c in zones:
         a0 = -90 + a * 1.8; a1 = -90 + b * 1.8
         o.append(f'<path d="{wedge(cx, cy, r - 11, r, a0 + 0.8, a1 - 0.8)}" fill="{c}" fill-opacity=".9"/>')
+    for t in (0, 20, 40, 60, 80, 100):
+        x, y = pol(cx, cy, r + 9, -90 + t * 1.8)
+        o.append(f'<text x="{x:.1f}" y="{y + 3:.1f}" font-size="8.5" fill="#6F7F96" text-anchor="middle">{t}</text>')
     ang = -90 + value * 1.8
-    x, y = pol(cx, cy, r - 18, ang)
+    x, y = pol(cx, cy, r - 16, ang)
     o.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="{cx}" cy="{cy}" r="6" fill="#fff"/>')
-    o.append(f'<text x="{cx}" y="{cy - 20}" font-size="30" font-weight="900" fill="#E6EDF6" text-anchor="middle">{value}</text>')
-    o.append(f'<text x="{cx}" y="{cy + 22}" font-size="10" fill="#8AA3C4" text-anchor="middle" letter-spacing="1.2">{label}</text>')
+    o.append(f'<text x="{cx}" y="{cy + 40}" font-size="32" font-weight="900" fill="#E6EDF6" text-anchor="middle">{value}<tspan font-size="14" font-weight="500" fill="#8AA3C4"> / 100</tspan></text>')
+    o.append(f'<text x="{cx}" y="{cy + 58}" font-size="10" fill="#8AA3C4" text-anchor="middle" letter-spacing="1.2">{label}</text>')
     o.append('</svg>')
     return ''.join(o)
 

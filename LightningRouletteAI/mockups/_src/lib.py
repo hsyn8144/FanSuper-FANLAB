@@ -6,10 +6,10 @@ import charts as ch
 # ───────────────────────── kayıt ─────────────────────────
 SHEETS = []
 
-def sheet(slug, section, title, sub, legend=(), refs='', wide=False, legend_title='Ekrandaki öğeler'):
+def sheet(slug, section, title, sub, legend=(), refs='', wide=False, legend_title='Ekrandaki öğeler', width=None):
     def deco(fn):
         SHEETS.append(dict(slug=slug, section=section, title=title, sub=sub, legend=list(legend), refs=refs,
-                           wide=wide, legend_title=legend_title, fn=fn))
+                           wide=wide, legend_title=legend_title, width=width, fn=fn))
         return fn
     return deco
 
@@ -21,6 +21,15 @@ def ann(n, inner, np='L', block=False, style=''):
     """Metni/ögeyi sıkı bir kutuya sarar ve rozeti ona bağlar (tam genişlikli kapsayıcıda rozet uzağa düşmesin)."""
     d = 'block' if block else 'inline-block'
     return f'<span style="display:{d};{style}"{A(n, np)}>{inner}</span>'
+
+def marks(inner, items):
+    """inner'ı position:relative kutuda sarar; items = [(n, x%, y%, np)] — görselin belirli noktasına rozet bağlar."""
+    m = ''
+    for it in items:
+        n, x, y = it[0], it[1], it[2]
+        np_ = it[3] if len(it) > 3 else 'c'
+        m += f'<div style="position:absolute;left:{x}%;top:{y}%;width:1px;height:1px"{A(n, np_)}></div>'
+    return f'<div style="position:relative">{inner}{m}</div>'
 
 def card(title, body, n=None, np='tl', cls='', style='', right=''):
     t = f'<div class="ct"><span>{title or ""}</span><span class="sp"></span>{right}</div>' if (title or right) else ''
@@ -133,7 +142,7 @@ def phone(content, nav=0, modal='', flush=False, min_h=None, style=''):
 
 def phone_land(content, w=700, h=330, style=''):
     return (f'<div class="phone land" style="width:{w}px;border-radius:30px"><div class="status" style="height:22px"><span>14:32</span><span class="r">{_STATUS_R}</span></div>'
-            f'<div class="scr flush" style="height:{h}px;min-height:0;{style}">{content}</div></div>')
+            f'<div class="scr flush" style="height:{h}px;min-height:0;flex:none;{style}">{content}</div></div>')
 
 def modal(inner, top=120):
     return f'<div class="scrim"><div class="dlg" style="margin-top:{top}px">{inner}</div></div>'
@@ -203,9 +212,10 @@ def build_page(meta, body, idx, total, css, js, fonts):
         items += f'<div class="li">{nb}<div><b>{t}</b> — {d}{ref}</div></div>'
     refs = f'<div class="refs"><b>Prompt maddeleri:</b> {meta["refs"]}</div>' if meta['refs'] else ''
     legend = (f'<div class="legend"><h3>{meta["legend_title"]}</h3>{items}{refs}</div>') if (items or refs) else ''
-    eyebrow = f'{APP} · EKRAN {idx:02d} / {total:02d} · {meta["section"]}'
+    wcss = f'<style>body,.sheet{{width:{meta["width"]}px}}</style>' if meta.get('width') else ''
+    eyebrow = f'{APP} · {idx:02d}/{total:02d} · {meta["section"]}'
     return f'''<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=480">
-{fonts}<style>{css}</style></head><body>
+{fonts}<style>{css}</style>{wcss}</head><body>
 <div class="sheet" id="sheet"><div class="eyebrow">{eyebrow}</div><h1>{meta["title"]}</h1><div class="sub">{meta["sub"]}</div>
 <div class="stage{" wide" if meta["wide"] else ""}">{body}</div>{legend}
 <div class="foot">Değerler yalnızca örnektir · Okunabilirlik için büyütülmüş tasarım önizlemesidir, gerçek cihaz görüntüsü değildir.<br>Hiçbir sonuç garanti değildir.</div></div>

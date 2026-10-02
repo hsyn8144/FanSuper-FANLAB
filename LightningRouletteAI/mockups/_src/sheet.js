@@ -51,6 +51,10 @@ const ANCH = {
     seen.forEach(n => { if (!legend.has(n)) audit.missingLegend.push(n); });
     legend.forEach(n => { if (!seen.has(n)) audit.extraLegend.push(n); });
     audit.badges = [...seen];
+    // açıklama (legend) ve başlık taşma denetimi
+    document.querySelectorAll('.legend .li > div:last-child, .sheet .sub, .sheet h1').forEach(el => {
+      if (el.scrollWidth > el.clientWidth + 1) audit.overflow.push('açıklama/başlık taşıyor: "' + (el.textContent || '').trim().slice(0, 40) + '"');
+    });
 
     // taşma denetimi
     const scr = stage.querySelector('.scr');

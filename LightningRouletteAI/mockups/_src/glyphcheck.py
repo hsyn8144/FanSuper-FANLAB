@@ -63,7 +63,7 @@ def main():
     bad = {}
     for p in sorted(glob.glob(os.path.join(B.OUT, '*.html'))):
         name = os.path.basename(p)
-        if name.startswith('_'): continue
+        if name.startswith('_') or name.endswith('.frag.html'): continue
         t = T(); t.feed(open(p, encoding='utf-8').read())
         text = html.unescape(''.join(t.buf))
         for ch in set(text):

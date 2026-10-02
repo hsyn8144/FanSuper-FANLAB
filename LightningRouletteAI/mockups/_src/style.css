@@ -18,6 +18,8 @@ body{width:480px;font-family:'Roboto','LRSym','Noto Color Emoji',system-ui,sans-
 .li .n{flex:none;width:21px;height:21px;border-radius:50%;background:#E91E63;color:#fff;font-weight:700;font-size:11.5px;display:flex;align-items:center;justify-content:center;margin-top:1px}
 .li .n.o{background:#EEF2F7;color:#5C6F87;border:1px solid #CBD5E1}
 .li b{color:#14202E;font-weight:700}
+.li>div:last-child{min-width:0;overflow-wrap:anywhere}
+.sheet .sub{overflow-wrap:anywhere}
 .li .ref{display:block;font-size:11px;color:#7A8CA3;margin-top:2px}
 .refs{border-top:1px solid #E3E9F1;margin-top:10px;padding-top:9px;font-size:11.5px;color:#6B7C93;line-height:1.5}
 .refs b{color:#44566C}
@@ -173,14 +175,14 @@ svg .mono{font-family:'Roboto Mono','LRSym',monospace}
 .cand .pp small{display:block;color:#6F7F96;font-weight:400;font-size:10px}
 
 /* ───────────── OVERLAY ───────────── */
-.ov{background:rgba(21,101,192,.92);border-radius:14px;padding:10px;color:#fff;box-shadow:0 8px 22px rgba(0,0,0,.45);position:relative;width:212px;flex:none}
+.ov{background:rgba(21,101,192,.92);border-radius:14px;padding:9px;color:#fff;box-shadow:0 8px 22px rgba(0,0,0,.45);position:relative;width:190px;flex:none}
 .ov .oh{display:flex;align-items:center;gap:6px;height:20px;margin-bottom:5px;font-size:10px;color:#BBDEFB;font-weight:700;letter-spacing:.8px}
 .ov .oh .sp{flex:1;display:flex;justify-content:center}
 .ov .grip{width:34px;height:4px;border-radius:2px;background:rgba(255,255,255,.38)}
 .ov .oi{font-size:12px;line-height:1}
 .ov .oi.w{color:#FFD54F}
 .ov .ol{font-size:9.5px;color:#BBDEFB;letter-spacing:1.3px;font-weight:700;margin:6px 0 3px}
-.ov .nx{display:flex;gap:4px}
+.ov .nx{display:flex;gap:3px}
 .ov .nx .c{flex:1;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.26);border-radius:8px;text-align:center;padding:4px 0 3px;line-height:1.05}
 .ov .nx .c b{display:block;font-size:16px;font-weight:700;color:#fff}
 .ov .nx .c i{display:block;font-style:normal;font-size:9px;color:#FFD54F;font-weight:700;margin-top:1px}
@@ -188,7 +190,8 @@ svg .mono{font-family:'Roboto Mono','LRSym',monospace}
 .ov .tbo .r{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0;font-size:12px}
 .ov .tbo .r span{font-weight:700;color:#E3F2FD}
 .ov .tbo .r em{font-style:normal;font-family:'Roboto Mono','LRSym','Noto Color Emoji',monospace;font-weight:700;color:#FFB74D;font-size:13px}
-.ov .rc{display:flex;gap:3px;justify-content:space-between}
+.ov .rc{display:flex;gap:2px;justify-content:space-between}
+.ov .rc .nc{width:19px;height:19px;font-size:10px;border-radius:5px}
 .ov .rbx{background:rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.32);border-radius:10px;height:40px;display:flex;align-items:center;justify-content:center;font-size:23px;font-weight:700;margin-top:8px;letter-spacing:1px;position:relative}
 .ov .rbx small{position:absolute;left:8px;top:4px;font-size:8px;letter-spacing:.8px;color:#BBDEFB;font-weight:500}
 .ov .rbx.err{border-color:#FF8A80;color:#FFCDD2;background:rgba(183,28,28,.35)}
