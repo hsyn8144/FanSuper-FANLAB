@@ -14,7 +14,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT=${LRA_OUT:-/tmp/lra_build}
 mkdir -p "$OUT"
 SRC="$ROOT/app/src/main/java/fan/lightningroulette/core"
-if [ "$1" = "test" ]; then
+if [ "$1" = "gensample" ]; then
+  kotlinc "$SRC"/*.kt "$ROOT"/tools/GenSample.kt -d "$OUT/gen.jar" -nowarn 2>&1 | grep -v "^warning" || true
+  (cd "$ROOT" && java -Dfile.encoding=UTF-8 -cp "$OUT/gen.jar:$KC/package/lib/kotlin-stdlib.jar" GenSampleKt)
+elif [ "$1" = "test" ]; then
   kotlinc "$SRC"/*.kt "$ROOT"/tools/junit-stubs/org/junit/*.kt "$ROOT"/app/src/test/java/fan/lightningroulette/*.kt "$ROOT"/tools/LocalRunner.kt -d "$OUT/test.jar" -Xskip-prerelease-check -nowarn 2>&1 | grep -v "^warning" || true
   java -Dfile.encoding=UTF-8 -cp "$OUT/test.jar:$KC/package/lib/kotlin-stdlib.jar" LocalRunnerKt fan.lightningroulette.CoreTest fan.lightningroulette.ResumeTest fan.lightningroulette.ImportTest fan.lightningroulette.LabTest fan.lightningroulette.SessionTest
 else

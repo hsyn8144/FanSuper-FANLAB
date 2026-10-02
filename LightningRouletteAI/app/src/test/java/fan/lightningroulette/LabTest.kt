@@ -62,6 +62,12 @@ class ImportTest {
         assertEquals(2, ded.size)
     }
 
+    @Test fun sampleAssetMatchesGenerator() {
+        val f = listOf("src/main/assets/sample_2000.csv", "app/src/main/assets/sample_2000.csv").map { java.io.File(it) }.firstOrNull { it.exists() }
+        assertNotNull("sample_2000.csv bulunamadı (çalışma dizini: ${java.io.File(".").absolutePath})", f)
+        assertEquals("asset = üretici çıktısı (tools/kc.sh gensample)", Exporter.csv(SampleData.generate()), f!!.readText(Charsets.UTF_8))
+    }
+
     @Test fun sampleDatasetIsDeterministicSyntheticAndFair() {
         val a = SampleData.generate(); val b = SampleData.generate()
         assertEquals(2000, a.size); assertEquals(a.map { it.value }, b.map { it.value })
