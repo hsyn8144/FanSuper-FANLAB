@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import fan.lightningroulette.core.Candidate
@@ -207,7 +208,7 @@ fun InputPad(ui: EngineUi) {
                     val on = !isEnter || valid
                     val bg = if (isEnter) (if (valid) C.ok else C.card2) else if (k == "DEL") C.card2 else C.blueDeep.copy(alpha = 0.55f)
                     Box(
-                        Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(10.dp)).background(bg).border(BorderStroke(1.dp, C.line), RoundedCornerShape(10.dp))
+                        Modifier.weight(1f).testTag("key_$k").height(48.dp).clip(RoundedCornerShape(10.dp)).background(bg).border(BorderStroke(1.dp, C.line), RoundedCornerShape(10.dp))
                             .clickable(enabled = on) {
                                 when (k) {
                                     "DEL" -> {

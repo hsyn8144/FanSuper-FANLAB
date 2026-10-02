@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -134,7 +135,7 @@ fun SegTabs(items: List<String>, sel: Int, onSel: (Int) -> Unit, modifier: Modif
         for ((i, s) in items.withIndex()) {
             val on = i == sel
             Box(
-                Modifier.clip(RoundedCornerShape(50)).background(if (on) C.blueDeep else C.card2)
+                Modifier.testTag("seg_$s").clip(RoundedCornerShape(50)).background(if (on) C.blueDeep else C.card2)
                     .border(BorderStroke(1.dp, if (on) C.blue else C.line), RoundedCornerShape(50)).clickable { onSel(i) }.padding(horizontal = 12.dp, vertical = 7.dp)
             ) { T(s, if (on) Color.White else C.dim, 12, on) }
         }

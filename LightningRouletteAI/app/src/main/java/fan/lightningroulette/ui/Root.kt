@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -221,7 +222,7 @@ fun MainScaffold(ui: EngineUi) {
         Row(Modifier.fillMaxWidth().background(C.card).padding(vertical = 4.dp)) {
             for ((i, n) in NAV.withIndex()) {
                 val on = i == tab && !detail
-                Column(Modifier.weight(1f).clickable { tab = i; detail = false }.padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.weight(1f).testTag("nav_$i").clickable { tab = i; detail = false }.padding(vertical = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     T(n.first, if (on) C.gold else C.dim, 18)
                     T(n.second, if (on) C.text else C.dim2, 10, on)
                 }
