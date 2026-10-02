@@ -151,8 +151,8 @@ private fun TableCouncil(ui: EngineUi) {
     val p = ui.pred
     LrCard(title = "TABLE · güncel seçimler") {
         if (p == null) T("Kilitli tahmin yok.", C.dim, 12)
-        else for (c in p.table) KV(TableCats.IDS[c.cat] + " → " + c.pick, S.pc(c.p * 100) + "  (taban " + S.pc(c.base * 100) + ")", if (c.p > c.base + 0.02) "warn" else "")
-        T("Her kategori için frequency (decay) + 1. derece geçiş birleşimi; sayı tahmininden bağımsızdır, Wheel’in türevi değildir.", C.dim2, 10)
+        else for (c in p.table) TableDistributionRow(c, dense = true)
+        T("Her yüzde sınıf + 0 dağılımıdır. Frequency (decay), son 50 ve 1. derece geçiş birleşir; ağırlıklar yalnızca gerçek sonuç girildikten sonra güncellenir. Bu model tahminidir, garanti değildir.", C.dim2, 10)
     }
     val c = ctx
     if (c == null) Banner("Bağımsızlık testi için LAB taban koşusu gerekir (LAB sekmesi → Overview).", "info")

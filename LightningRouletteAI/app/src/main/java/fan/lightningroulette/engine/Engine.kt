@@ -214,6 +214,7 @@ object Engine {
             if (!settings.pythonEnabled) { /* Python kapalı: köprü kalsın, çağrılmaz */ }
             else if (py == null && pyError == null) { /* ilk kez açıldı: openSession başlatır */ }
             openSession()
+            publish(toast("Ayarlar uygulandı · aktif kilitli tahmin değişmez; yeni tahmin sonraki sonuçta"))
         }
     }
 

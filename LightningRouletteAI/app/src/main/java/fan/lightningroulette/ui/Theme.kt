@@ -34,6 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fan.lightningroulette.core.S
+import fan.lightningroulette.core.TableCall
+import fan.lightningroulette.core.TableCats
 import fan.lightningroulette.core.Wheel
 
 /** Tasarım sistemi (Ekran 02): koyu lacivert, altın vurgu, rulet renkleri. */
@@ -115,6 +118,51 @@ fun NumChip(n: Int, size: Dp = 30.dp, fs: Int = 13, ring: Boolean = false) {
         Modifier.size(size).clip(CircleShape).background(C.pocket(n)).border(BorderStroke(if (ring) 2.dp else 1.dp, if (ring) C.gold else Color(0x33FFFFFF)), CircleShape),
         contentAlignment = Alignment.Center
     ) { T(n.toString(), Color.White, fs, true, true) }
+}
+
+/**
+ * Tüm bahis sınıflarını ve sıfırı aynı anda gösterir. Altın çerçeve, Table modelinin
+ * kilitli tahminindeki en yüksek sınıfı belirtir; diğer yüzdeler alternatif sınıflardır.
+ */
+@Composable
+fun TableDistributionRow(call: TableCall, dense: Boolean = false) {
+    val classCount = TableCats.classes(call.cat)
+    val shape = RoundedCornerShape(7.dp)
+    Column(Modifier.fillMaxWidth().padding(vertical = if (dense) 2.dp else 4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            T(TableCats.IDS[call.cat], C.dim, if (dense) 8 else 10, true, modifier = Modifier.weight(1f))
+            T("Seçim: ${call.pick}", C.gold, if (dense) 8 else 10, true)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (dense) 2.dp else 4.dp)) {
+            for (i in 0..classCount) {
+                val zero = i == classCount
+                val selected = !zero && i == call.cls
+                val fill = when {
+                    call.cat == TableCats.COLOR && i == 0 -> C.red
+                    call.cat == TableCats.COLOR && i == 1 -> C.black
+                    zero -> C.green
+                    selected -> C.blueDeep.copy(alpha = 0.35f)
+                    else -> C.card2
+                }
+                val label = if (zero) "0 · yeşil" else TableCats.PICKS[call.cat][i]
+                val fg = if (call.cat == TableCats.COLOR || zero) Color.White else if (selected) C.gold else C.dim
+                Column(
+                    Modifier.weight(1f).clip(shape).background(fill)
+                        .border(BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) C.gold else C.line), shape)
+                        .padding(horizontal = if (dense) 1.dp else 3.dp, vertical = if (dense) 3.dp else 5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    T(label, fg, if (dense) 7 else 9, selected, align = TextAlign.Center)
+                    T(S.pc(call.probability(i) * 100, 0), if (selected) C.gold else Color.White,
+                        if (dense) 9 else 11, true, true, TextAlign.Center)
+                }
+            }
+        }
+        T(
+            "Taban: dış taraf ${S.pc(TableCats.baseline(call.cat) * 100, 1)} · 0 ${S.pc(TableCats.baseline(call.cat, classCount) * 100, 1)}",
+            C.dim2, if (dense) 7 else 9
+        )
+    }
 }
 
 @Composable

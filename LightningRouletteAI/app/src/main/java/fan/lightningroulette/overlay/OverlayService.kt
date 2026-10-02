@@ -75,7 +75,7 @@ class OverlayService : LifecycleService() {
         lifecycleScope.launch {
             combine(Engine.ui, Engine.settings.version) { ui, _ -> ui }.collect { ui ->
                 val s = Engine.settings
-                val key = s.ovMode + "|" + s.ovScale + "|" + s.ovAlpha + "|" + s.ovNext + "|" + s.ovKeyboard + "|" + s.ovWarn + "|" + s.ovVibrate + "|" + s.tableMask
+                val key = s.ovMode + "|" + s.ovScale + "|" + s.ovAlpha + "|" + s.ovNext + "|" + s.ovKeyboard + "|" + s.ovWarn + "|" + s.ovVibrate + "|" + s.tableMask + "|" + s.pctMode
                 if (view == null || key != builtKey) buildView(key)
                 view?.update(ui)
                 val code = ui.pred?.code ?: "kilit yok"

@@ -8,13 +8,16 @@ import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -35,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import fan.lightningroulette.core.Codes
 import fan.lightningroulette.core.S
@@ -70,15 +75,36 @@ fun SettingsScreen(ui: EngineUi) {
 }
 
 @Composable
-private fun Chips(options: List<Pair<String, String>>, sel: String, set: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) { for ((l, v) in options) Pill(l, if (v == sel) "blue" else "line", Modifier.clickable { set(v) }) }
+private fun Chips(setting: String, options: List<Pair<String, String>>, sel: String, set: (String) -> Unit) {
+    // Önceki Row ekrandan geniş olunca sağdaki seçenekler kırpılıp dokunulamaz kalıyordu.
+    // Yatay kaydırma ve tüm chip alanında en az 44dp dokunma hedefi sağlar.
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        for ((label, value) in options) {
+            Pill(
+                label,
+                if (value == sel) "blue" else "line",
+                Modifier.heightIn(min = 44.dp)
+                    .testTag("choice_${setting}_$value")
+                    .clickable(role = Role.RadioButton) { set(value) }
+            )
+        }
+    }
 }
 
 @Composable
 private fun SwitchRow(label: String, sub: String = "", on: Boolean, set: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Başlığa/açıklamaya dokunmak da switch'i değiştirir; yalnızca küçük anahtara bağlı değil.
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("setting_$label")
+            .toggleable(value = on, role = Role.Switch, onValueChange = set)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(Modifier.weight(1f).padding(end = 8.dp)) { T(label, C.text, 13); if (sub.isNotEmpty()) T(sub, C.dim2, 10) }
-        Switch(checked = on, onCheckedChange = set)
+        Switch(checked = on, onCheckedChange = null)
     }
 }
 
@@ -87,7 +113,11 @@ private fun SliderRow(label: String, value: Int, min: Int, max: Int, unit: Strin
     var v by remember(value) { mutableStateOf(value.toFloat()) }
     Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Row { T(label, C.text, 13, modifier = Modifier.weight(1f)); T("${v.toInt()}$unit", C.gold, 13, true, true) }
-        Slider(value = v, onValueChange = { v = it }, valueRange = min.toFloat()..max.toFloat(), onValueChangeFinished = { onDone(v.toInt()) })
+        Slider(
+            modifier = Modifier.testTag("slider_$label"), value = v,
+            onValueChange = { v = it }, valueRange = min.toFloat()..max.toFloat(),
+            onValueChangeFinished = { onDone(v.toInt()) }
+        )
     }
 }
 
@@ -95,14 +125,14 @@ private fun SliderRow(label: String, value: Int, min: Int, max: Int, unit: Strin
 private fun PredSettings(ver: Int) {
     val s = Engine.settings
     LrCard(title = "ADAY VE K") {
-        T("Aday sayısı (3–5)", C.dim, 11, true); Chips(listOf("3" to "3", "4" to "4", "5" to "5"), s.nCand.toString()) { s.nCand = it.toInt(); Engine.applySettings() }
-        T("Varsayılan k", C.dim, 11, true); Chips(listOf("otomatik" to "0", "k1" to "1", "k2" to "2", "k3" to "3"), s.kMode.toString()) { s.kMode = it.toInt(); Engine.applySettings() }
-        T("Yön", C.dim, 11, true); Chips(listOf("↔ iki yön" to "bi", "L saat yönünün tersi" to "L", "R saat yönü" to "R"), s.dir) { s.dir = it; Engine.applySettings() }
+        T("Aday sayısı (3–5)", C.dim, 11, true); Chips("nCand", listOf("3" to "3", "4" to "4", "5" to "5"), s.nCand.toString()) { s.nCand = it.toInt(); Engine.applySettings() }
+        T("Varsayılan k", C.dim, 11, true); Chips("kMode", listOf("otomatik" to "0", "k1" to "1", "k2" to "2", "k3" to "3"), s.kMode.toString()) { s.kMode = it.toInt(); Engine.applySettings() }
+        T("Yön", C.dim, 11, true); Chips("dir", listOf("↔ iki yön" to "bi", "L saat yönünün tersi" to "L", "R saat yönü" to "R"), s.dir) { s.dir = it; Engine.applySettings() }
         T("Değişiklik yalnızca SONRAKİ tahmini etkiler; mevcut kilitli tahmin değişmez.", C.dim2, 10)
     }
     LrCard(title = "ÇEŞİTLİLİK") { SwitchRow("Çeşitlilik kuralı", "Mümkünse 3–5 adayda en az 2 farklı sector/region kaynağı", s.diversity) { s.diversity = it; Engine.applySettings() } }
     LrCard(title = "YÜZDE SEMANTİĞİ") {
-        Chips(listOf("Kalibre olasılık" to "cal", "Model olasılığı (Kotlin)" to "model"), s.pctMode) { s.pctMode = it }
+        Chips("pctMode", listOf("Kalibre olasılık" to "cal", "Model olasılığı (Kotlin)" to "model"), s.pctMode) { s.pctMode = it }
         T("Kalibre olasılık (varsayılan), model olasılığı ve tarihsel oran ayrı tutulur. Sadece frequency ise “confidence” diye sunulmaz.", C.dim2, 10)
     }
     LrCard(title = "MECLİS AĞIRLIKLARI") {
@@ -131,10 +161,10 @@ private fun OverlaySettings(ver: Int) {
         if (!can) LrButton("Ayarı aç", { ctx.startActivity(Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + ctx.packageName))) }, "ghost", true, Modifier.fillMaxWidth())
     }
     LrCard(title = "GÖRÜNÜM") {
-        Chips(listOf("Dikey" to "vertical", "Yatay" to "horizontal", "Kompakt" to "compact", "Metin" to "text", "Simge" to "icon"), s.ovMode) { s.ovMode = it }
+        Chips("ovMode", listOf("Dikey" to "vertical", "Yatay" to "horizontal", "Kompakt" to "compact", "Metin" to "text", "Simge" to "icon"), s.ovMode) { s.ovMode = it }
         SliderRow("Boyut", s.ovScale, 80, 140, "%") { s.ovScale = it }
         SliderRow("Saydamlık", s.ovAlpha, 60, 100, "%") { s.ovAlpha = it }
-        T("NEXT sayısı", C.dim, 11, true); Chips(listOf("3" to "3", "4" to "4", "5" to "5"), s.ovNext.toString()) { s.ovNext = it.toInt() }
+        T("NEXT sayısı", C.dim, 11, true); Chips("ovNext", listOf("3" to "3", "4" to "4", "5" to "5"), s.ovNext.toString()) { s.ovNext = it.toInt() }
         T("SON 8 ve TABLE satır sayısı sabittir (8 ve 5).", C.dim2, 10)
     }
     LrCard(title = "KLAVYE VE UYARILAR") {
@@ -180,7 +210,7 @@ private fun DataSettings(ver: Int) {
         "veritabanı $db KB · Python durumu $py KB · yedekler $bk KB"
     } }
     LrCard(title = "DIŞA AKTARMA VARSAYILANI") {
-        Chips(listOf("CSV" to "csv", "JSON" to "json", "TXT" to "txt"), s.exportFormat) { s.exportFormat = it }
+        Chips("exportFormat", listOf("CSV" to "csv", "JSON" to "json", "TXT" to "txt"), s.exportFormat) { s.exportFormat = it }
         SwitchRow("Günlük otomatik yedek", "Cihaz içi; son ${s.backupKeep} yedek saklanır", s.autoBackup) { s.autoBackup = it }
     }
     LrCard(title = "DEPOLAMA") {
@@ -309,7 +339,7 @@ private fun AboutTab() {
     }
     LrCard(title = "GİZLİLİK") { T("Çevrimdışı çalışır; hesap, reklam ve ağ yok (INTERNET izni istenmez). Tüm veri cihazda tutulur; istediğin an dışa aktarabilir veya silebilirsin.", C.text, 12) }
     LrCard(title = "SÜRÜM") {
-        KV("Uygulama", "Lightning Roulette AI 1.0.0", mono = false); KV("Paket", "fan.lightningroulette", mono = false); KV("Veritabanı şeması", "v${LrDb.VERSION}")
+        KV("Uygulama", "Lightning Roulette AI ${fan.lightningroulette.BuildConfig.VERSION_NAME}", mono = false); KV("Paket", "fan.lightningroulette", mono = false); KV("Veritabanı şeması", "v${LrDb.VERSION}")
         KV("Python meclisi", "numpy · Chaquopy 3.11", mono = false); KV("Hata kodları", "LR-E-*", mono = false)
     }
 }

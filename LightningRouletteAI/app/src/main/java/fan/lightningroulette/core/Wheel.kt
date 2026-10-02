@@ -93,8 +93,20 @@ object TableCats {
     )
     val PICKS = arrayOf(arrayOf("Kırmızı", "Siyah"), arrayOf("Çift", "Tek"), arrayOf("1–18", "19–36"), arrayOf("1–12", "13–24", "25–36"), arrayOf("Sütun 1", "Sütun 2", "Sütun 3"))
     fun classes(cat: Int) = LABELS[cat].size
-    /** Sınıf büyüklüğü / 37 */
-    fun baseline(cat: Int): Double = (if (classes(cat) == 2) 18 else 12).toDouble() / Wheel.N
+    /**
+     * Rulet tabanı: sıfır hiçbir dış bahis sınıfına girmez; TableEngine'de ayrı bir
+     * sınıf olarak tutulur. Böylece yüzde tüm 37 cepten hesaplanır, 0 yok sayılmaz.
+     */
+    fun baseline(cat: Int): Double = baseline(cat, 0)
+
+    /** [classIndex] normal bahis sınıfıysa 18/37 veya 12/37; son sınıf (k) sıfırdır: 1/37. */
+    fun baseline(cat: Int, classIndex: Int): Double =
+        if (classIndex == classes(cat)) 1.0 / Wheel.N
+        else (if (classes(cat) == 2) 18.0 else 12.0) / Wheel.N
+
+    /** Son indeksi (classes(cat)) sıfır cebi gösterir. */
+    fun optionLabel(cat: Int, classIndex: Int): String =
+        if (classIndex == classes(cat)) "0 · yeşil" else PICKS[cat][classIndex]
 
     /** n sayısının cat kategorisindeki sınıfı; sıfır için −1. */
     fun classOf(cat: Int, n: Int): Int {

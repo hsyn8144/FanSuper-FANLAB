@@ -20,13 +20,19 @@ Spesifikasyon: [`Lightning_Roulette_AI_TAM_KAPSAMLI_PROMPT_V3.txt`](../Lightning
 
 | Sekme | İçerik |
 |---|---|
-| **Ana** | durum çipleri · yaşam döngüsü şeridi · 🔒 kilit kartı · **NEXT** (3–5 aday, `29-k2` = merkez ±2 cep) · **TABLE** (COLOR/PARITY/HIGH-LOW/DOZEN/COLUMN) · canlı giriş (3×4 klavye, DEL×2 = son spini sil, çift ENTER yoksayılır, “07 → 7”, 37+ kırmızı) · sonuç değerlendirmesi · son OOS özeti (Exact ≠ Candidate, taban, fark, %95 CI, sınıf A–F/O/L/S) · tahmin detayı (çark, geometri, skor katkıları, meclis uyuşmazlığı) |
+| **Ana** | durum çipleri · yaşam döngüsü şeridi · 🔒 kilit kartı · **NEXT** (3–5 aday, merkez ve komşu aralığı yüzdeleri; `29-k2` = merkez ±2 cep) · **TABLE** (renk, tek/çift, 1–18/19–36, üç düzine, üç sütun ve her satırda ayrı 0 olasılığı) · canlı giriş (3×4 klavye, DEL×2 = son spini sil, çift ENTER yoksayılır, “07 → 7”, 37+ kırmızı) · sonuç değerlendirmesi · son OOS özeti (Exact ≠ Candidate, taban, fark, %95 CI, sınıf A–F/O/L/S) · tahmin detayı (37 sonucun tam olasılık sıralaması, çark, geometri, skor katkıları, meclis uyuşmazlığı) |
 | **Meclisler** | Kotlin (8 üye) · Python (8 üye + güven λ, durum OK/ERROR/OFF, Kotlin-only fallback) · Table · **Hakem** (20/80…80/20 validation testi, OOS kilidi, konformal küme) · **Champion/Challenger** (9 kapı, manuel onay, sürüm geçmişi) |
 | **Wheel** | fiziksel çark (aday halkaları, sektör çizgileri, bölgeler, SON 8, dokunarak cep seçimi, k/yön) · masa düzeni · sektör/bölge editörü |
 | **LAB** | **16 sekme**: Overview · Models · Side/Table · Wheel · Sectors · Neighbors · Patterns · Transitions · Replay · Calibration · Diversity · Regime · Counterfactual · Ablation · Robustness (skor/hassasiyet/stres/hata matrisi) · Experiments; deney oluşturucu, kalıcı kuyruk (checkpoint/resume), rapor, hipotez üretici + **silinemez** başarısız hipotez hafızası |
 | **Veri** | spin listesi (süzgeç, arama, seçim, **silme etkisi onayı**, düzenleme) · CSV/TXT/JSON içe aktarma sihirbazı (TOTAL/VALID/INVALID/DUPLICATE/NEW, overlap, `SYNTHETIC_IMPORT`) · dataset sürümleri · dışa aktar/yedek/geri yükle (`.lrexport`, round-trip testi) |
-| **Ayarlar** | Tahmin · Overlay · Python/LAB · Veri ve güvenlik · İşlem logları + `LR-E-*` sözlüğü · **Tanılama (20 self-test)** · Hakkında |
-| **Overlay** | 5 mod (dikey · yatay · kompakt · metin · simge), 190 dp kart, sürükleme/kenara yapışma, aynı klavye/doğrulama, ön plan bildirimi (Gizle/Kapat) |
+| **Ayarlar** | Tahmin · Overlay · Python/LAB · Veri ve güvenlik · İşlem logları + `LR-E-*` sözlüğü · **Tanılama (20 self-test)** · Hakkında; ayar satırının tamamı dokunulabilir, seçenekler dar ekranda yatay kaydırılır |
+| **Overlay** | 5 mod (dikey · yatay · kompakt · metin · simge), 190 dp kart, tüm masa bahis sınıfları + 0 yüzdesi, NEXT merkez/aralık yüzdeleri, sürükleme/kenara yapışma, aynı klavye/doğrulama, ön plan bildirimi (Gizle/Kapat) |
+
+## Tahmin yüzdeleri ve kilit davranışı
+
+TABLE kartı ve overlay artık yalnızca en yüksek seçimi değil, her kategorinin tüm alternatiflerini gösterir: Kırmızı/Siyah, Çift/Tek, 1–18/19–36 (18 alt gruptadır), 1–12/13–24/25–36, Sütun 1/2/3 ve her kategori için ayrı 0 olasılığı. Bu olasılıklar 37 Avrupa ruleti cebi üzerinden hesaplanır. Teorik tabanlar: ikili dış bahisler 18/37 (%48,6), düzine/sütun 12/37 (%32,4), 0 ise 1/37 (%2,7).
+
+Table tahmincileri azalan ağırlıklı frekans, son 50 spin frekansı ve birinci derece geçiştir. Ağırlıklar gerçek sonuç girildikten sonra Fixed-Share Hedge ile güncellenir; gösterilen dağılım %60 model karışımı + %40 teorik tabandır. Bu **model tahminidir**; kalibre başarı, kazanma olasılığı veya garanti değildir. NEXT adayları her kilitteki güncel 37 cep dağılımından sıralanır; farklı geçmişler farklı olasılık ve öneri üretebilir. Tam eşit olasılıkta sıralama tekrarlanabilirlik için cep numarasına göre yapılır; bu sıralama bir tahmin avantajı değildir ve yapay rastgelelikle gizlenmez. NEXT için tek cep P'si ile k-komşu aralığının toplam P'si ayrı gösterilir. Tahmin kilidi sonuç girilene kadar sabittir; ayar değişikliği mevcut kilidi geriye dönük değiştirmez, sonraki kilitte uygulanır. Tahmin detayında 37 cebin tamamı sıralanır.
 
 ## Mimari
 
@@ -64,7 +70,7 @@ LightningRouletteAI/app/src/main
 # Android (CI ile aynı): JDK 17 + Python 3.11 gerekir (Chaquopy numpy kurar)
 cd LightningRouletteAI && ./gradlew testDebugUnitTest assembleRelease     # APK: app/build/outputs/apk/release/
 
-# Yerel hızlı döngü (Android SDK gerekmez): saf çekirdek + 40 Kotlin testi (Kotlin 1.9.22 / JDK 17 ile CI’daki dil sürümü)
+# Yerel hızlı döngü (Android SDK gerekmez): saf çekirdek + 42 Kotlin testi (Kotlin 1.9.22 / JDK 17 ile CI’daki dil sürümü)
 tools/kc.sh          # çekirdeği derler
 tools/kc.sh test     # çekirdeği ve testleri AYRI modül olarak derler + çalıştırır (smart-cast kısıtları Gradle’daki gibi)
 tools/kc.sh gensample   # app/src/main/assets/sample_2000.csv'yi yeniden üretir (test: asset = üretici çıktısı)
