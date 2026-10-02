@@ -99,6 +99,20 @@ class SessionTest {
         assertEquals("yeniden başlatma sonrası öğrenme için üye olasılıkları yeniden hesaplandı", a.eval!!.exact, b.eval!!.exact)
     }
 
+    @Test fun restartEquivalenceAtEveryRefitBoundary() {
+        // Kotlin ML üyesi 25 adımda bir tahmin sırasında yeniden uydurur: durum kaydı bu sınırlarda gerideymiş (hata). Sınırları tara.
+        for (count in listOf(1, 14, 15, 16, 24, 25, 26, 40)) {
+            val st = MemStore(); st.seed(rnd(60, 30L + count)); val s1 = open(st); s1.predictNext()
+            for (v in rnd(count, 40L + count)) s1.enter(v, s1.size)
+            val s2 = open(st)
+            assertEquals("yeniden başlatma sonrası durum ($count spin)", s1.brain.fullStateJson(), s2.brain.fullStateJson())
+            assertEquals(s1.view!!.code, s2.view!!.code)
+            // geri al sonrası da tutarlı: iki oturum aynı anlık görüntüye döner
+            s1.undoLast(); val s3 = open(st)
+            assertEquals("geri alma sonrası durum ($count spin)", s1.brain.fullStateJson(), s3.brain.fullStateJson())
+        }
+    }
+
     @Test fun tailCatchUpProcessesOnlyNewRecordsAndMatchesContinuousRun() {
         val base = rnd(100, 7); val tail = rnd(5, 8)
         val stA = MemStore(); stA.seed(base); val sA = open(stA); sA.predictNext()

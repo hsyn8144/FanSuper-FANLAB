@@ -268,7 +268,20 @@ class Session(
         core = null; view = null
         store.log("INFO", null, "SPIN_ENTERED", "#${spin.id} = $value (n=${values.size})")
         val next = predictNext()
+        persistAfterPredict()
         return EnterResult.Entered(spin, ev, if (ev != null) evaluated else null, next)
+    }
+
+    /**
+     * Bazı üyeler (ör. Kotlin ML) yeniden uydurmayı TAHMİN sırasında yapar; ENTER'da kaydedilen durum tahminden öncedir.
+     * Yeni tahminden sonra durumu yeniden kaydederiz: yeniden başlatmada bellekteki durumla birebir aynı olur ve
+     * bir sonraki geri alma anlık görüntüsü (PREV) da bu tutarlı durumdan alınır.
+     */
+    private fun persistAfterPredict() {
+        try {
+            val blob = brain.fullStateJson()
+            if (blob != lastBlob) { lastBlob = blob; saveState(values.size, blob) }
+        } catch (e: Exception) { store.log("WARN", Codes.STATE2, "STATE_RESAVE_FAILED", e.message ?: "") }
     }
 
     /** Son spini geri al: önceki anlık görüntüye dön, aynı kilitli tahmin geri gelir (Prompt §60). */
