@@ -12,5 +12,7 @@ object Assert {
     @JvmStatic fun assertEquals(m: String, a: Double, b: Double, eps: Double) { if (Math.abs(a - b) > eps) throw AssertionError("$m: beklenen <$a> gerçek <$b> (±$eps)") }
     @JvmStatic fun assertNotNull(a: Any?) { if (a == null) throw AssertionError("null olmamalıydı") }
     @JvmStatic fun assertNull(a: Any?) { if (a != null) throw AssertionError("null olmalıydı: $a") }
+    @JvmStatic fun assertNull(m: String, a: Any?) { if (a != null) throw AssertionError("$m: null olmalıydı: $a") }
+    @JvmStatic fun assertNotNull(m: String, a: Any?) { if (a == null) throw AssertionError("$m: null olmamalıydı") }
     @JvmStatic fun fail(m: String) { throw AssertionError(m) }
 }

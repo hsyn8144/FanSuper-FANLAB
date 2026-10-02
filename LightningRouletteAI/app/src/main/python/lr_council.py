@@ -665,29 +665,32 @@ class Council:
     def names(self):
         return [m.name for m in self.members]
 
-    def _learn_one(self, values, i):
+    def _learn_one(self, values, off, i):
+        """i: MUTLAK gözlem sırası; values pencere (values[0] mutlak sıra `off`)."""
+        r = i - off
         pend = self.pending
         if pend is not None and pend[0] == i:
-            a = int(values[i])
+            a = int(values[r])
             raw = pend[1][:, a]
             q = (1 - self.lam) * raw + self.lam / K
             g = (raw - 1.0 / K) / np.maximum(q, 1e-9)           # dL/dλ, L = -ln q
             self.lam = np.clip(self.lam - LAM_LR * np.clip(g, -3.0, 3.0), LAM_MIN, LAM_MAX)
         self.pending = None
-        h = Hist(values, i + 1)
+        h = Hist(values, r + 1)
         for m in self.members:
             m.update(h)
         self.n = i + 1
-        self.tail = tuple(int(x) for x in values[max(0, i + 1 - 8):i + 1])
+        self.tail = tuple(int(x) for x in values[max(0, r + 1 - 8):r + 1])
 
-    def learn_to(self, values, target, keep_snap=True):
+    def learn_to(self, values, off, target, keep_snap=True):
         for i in range(self.n, target):
             if keep_snap and i == target - 1:
                 self.snap = (self.n, self.tail, self._blob())
-            self._learn_one(values, i)
+            self._learn_one(values, off, i)
 
-    def predict(self, values, n):
-        h = Hist(values, n)
+    def predict(self, values, off, n):
+        """n: MUTLAK sayı (n kayıt biliniyor). Yalnızca values[:n-off] görülür."""
+        h = Hist(values, n - off)
         raw = np.stack([m.predict(h) for m in self.members])
         self.pending = (n, raw)
         lam = self.lam[:, None]
@@ -726,21 +729,25 @@ class Council:
         self.tail = ()
         self.snap = None
 
-    def sync(self, values):
-        """Durumu `values` ile tutarlı yap: eksik gözlemleri sırayla öğren; tutarsızsa geri al/yeniden kur."""
-        n = len(values)
-        tail_ok = self.n <= n and self.tail == tuple(int(x) for x in values[max(0, self.n - 8):self.n])
+    def sync(self, values, off=0):
+        """Durumu pencere (values, mutlak başlangıç off) ile tutarlı yap: eksik gözlemleri sırayla öğren;
+        tutarsızsa (geri alma / düzenleme / pencere gerisinde) snapshot ya da yeniden kurulum."""
+        n = off + len(values)
+        r = self.n - off
+        tail_ok = self.n <= n and r >= 0 and self.tail == tuple(int(x) for x in values[max(0, r - 8):r])
         if self.n > n or not tail_ok:
             sn = self.snap
-            if sn is not None and sn[0] == n and sn[1] == tuple(int(x) for x in values[max(0, n - 8):n]):
+            rs = (sn[0] - off) if sn is not None else -1
+            if sn is not None and sn[0] == n and rs >= 0 and sn[1] == tuple(int(x) for x in values[max(0, rs - 8):rs]):
                 self._load_blob(sn[2])
                 self.n, self.tail, self.snap = sn[0], sn[1], None
             else:
                 self.reset()
-                start = max(0, n - WARM)
+                start = off + max(0, len(values) - WARM)
                 self.n = start          # yalnızca son WARM gözlem öğrenilir; üyeler bağlamı v[:i]'den okur
-                self.tail = tuple(int(x) for x in values[max(0, start - 8):start])
-        self.learn_to(values, n)
+                rs = start - off
+                self.tail = tuple(int(x) for x in values[max(0, rs - 8):rs])
+        self.learn_to(values, off, n)
 
 
 # ================================================================= Modül API'si (Kotlin/Chaquopy buradan çağırır)
@@ -764,12 +771,14 @@ def _arr(values_json):
     return np.asarray(json.loads(values_json), dtype=int)
 
 
-def live_predict(values_json):
-    """Önce eksik gözlemleri öğrenir (sıralı, sızıntısız), sonra SONRAKİ spin için 8 üyenin dağılımını döndürür."""
+def live_predict(values_json, offset=0):
+    """values: son pencere (en eski → en yeni); offset: pencerenin MUTLAK başlangıç sırası.
+    Önce eksik gözlemleri öğrenir (sıralı, sızıntısız), sonra SONRAKİ spin için 8 üyenin dağılımını döndürür."""
     v = _arr(values_json)
-    _C.sync(v)
-    P = _C.predict(v, len(v))
-    return json.dumps({"ids": _C.ids, "names": _C.names, "probs": np.round(P, 8).tolist(), "lam": np.round(_C.lam, 4).tolist(), "n": int(len(v))})
+    off = int(offset)
+    _C.sync(v, off)
+    P = _C.predict(v, off, off + len(v))
+    return json.dumps({"ids": _C.ids, "names": _C.names, "probs": np.round(P, 8).tolist(), "lam": np.round(_C.lam, 4).tolist(), "n": int(off + len(v))})
 
 
 def undo_hint():
@@ -806,8 +815,8 @@ def replay_chunk(record_from, n_steps):
     stop = min(_R["end"], i + int(n_steps))
     while i < stop:
         if i >= int(record_from):
-            out.append(c.predict(v, i).astype(np.float32))      # v[:i] → i. spin için TAHMİN
-        c.learn_to(v, i + 1, keep_snap=False)                    # sonra gerçek i. spin ile ÖĞREN
+            out.append(c.predict(v, 0, i).astype(np.float32))   # v[:i] → i. spin için TAHMİN
+        c.learn_to(v, 0, i + 1, keep_snap=False)                 # sonra gerçek i. spin ile ÖĞREN
         i += 1
     _R["i"] = i
     return np.stack(out).astype(np.float32).tobytes() if out else b""
@@ -821,7 +830,7 @@ def selftest():
     rng = np.random.RandomState(0)
     v = rng.randint(0, 37, 300)
     c = Council()
-    c.sync(v)
-    P = c.predict(v, len(v))
+    c.sync(v, 0)
+    P = c.predict(v, 0, len(v))
     assert P.shape == (8, 37) and np.all(np.isfinite(P)) and np.allclose(P.sum(axis=1), 1.0)
     return "OK"

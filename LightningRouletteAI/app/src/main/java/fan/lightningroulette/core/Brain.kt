@@ -146,7 +146,7 @@ class Brain(val cfg: BrainConfig) {
     fun fullStateJson(): String {
         val ms = LinkedHashMap<String, Any?>()
         for (m in members) if (m is StatefulMember) ms[m.id] = m.stateMap()
-        return Json.stringify(mapOf("brain" to Json.parse(stateJson()), "members" to ms))
+        return Json.stringify(mapOf("brain" to Json.parse(stateJson()), "members" to ms, "ring" to ring.map { listOf(it.first.toList(), it.second) }))
     }
 
     fun restoreFull(json: String): Boolean {
@@ -155,6 +155,9 @@ class Brain(val cfg: BrainConfig) {
             if (!restore(Json.stringify(m["brain"]))) return false
             val ms = m["members"].jmap()
             for (mem in members) if (mem is StatefulMember) { val st = ms[mem.id]; if (st != null) mem.restoreState(st.jmap()) }
+            ring.clear()
+            val rg = m["ring"]
+            if (rg != null) for (e in rg.jlist()) { val l = e.jlist(); ring.add(l[0].jdoubles() to l[1].jint()) }
             true
         } catch (e: Exception) { false }
     }

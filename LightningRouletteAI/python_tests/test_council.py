@@ -126,6 +126,28 @@ class CouncilTest(unittest.TestCase):
         best = {n: base - x for n, x in zip(names, ll)}
         self.assertGreater(max(best["context"], best["motif"], best["hmm"]), 0.02, f"yapı öğrenilmedi: {best}")
 
+    def test_sliding_window_with_offset_matches_full_history(self):
+        """Kotlin yalnızca son pencereyi (offset ile) gönderir; durum her adımda tutarlı kalmalı, yeniden kurulum tetiklenmemeli."""
+        v = np.random.RandomState(12).randint(0, 37, 330)
+        W = 120
+        lc.configure("{}")
+        rebuilds = 0
+        orig = lc.Council.reset
+
+        def counting(self):
+            nonlocal rebuilds
+            rebuilds += 1
+            orig(self)
+        lc.Council.reset = counting
+        try:
+            for n in range(150, 200):
+                lo = max(0, n - W)
+                json.loads(lc.live_predict(j(v[lo:n]), lo))
+        finally:
+            lc.Council.reset = orig
+        self.assertEqual(rebuilds, 1, "ilk kurulum dışında yeniden kurulum olmamalı")
+        self.assertEqual(lc.state_n(), 199)
+
     def test_sector_config(self):
         lc.set_sectors([0, 10, 20, 37])
         self.assertEqual(lc.NS, 3)
