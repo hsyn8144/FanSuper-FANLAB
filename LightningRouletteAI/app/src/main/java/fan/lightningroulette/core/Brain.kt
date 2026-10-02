@@ -213,7 +213,8 @@ object Evaluator {
         val pa = pred.pFinal[actual]
         return Eval(
             actual, top.n == actual, rank > 0, rank, actual in union,
-            sectors.of[actual] == sectors.of[top.n], Regions.of[actual] == Regions.of[top.n], hits, union.size, pa, -ln(max(pa, 1e-12))
+            sectors.of[actual] == sectors.of[top.n], Regions.of[actual] == Regions.of[top.n], hits, union.size, pa, -ln(max(pa, 1e-12)),
+            cs.size, sectors.baseline(sectors.of[top.n]), Regions.size(Regions.of[top.n]).toDouble() / Wheel.N
         )
     }
 }

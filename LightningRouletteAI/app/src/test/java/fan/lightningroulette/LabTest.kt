@@ -111,6 +111,15 @@ class LabTest {
             assertEquals("$id önbellekten aynı", S.encode(LabTabs.build(a, id)), S.encode(LabTabs.build(b, id)))
     }
 
+    @Test fun experimentReportHasAllRequiredBlocks() {
+        val v = rnd(1200, 15); val t = tsOf(v.size)
+        val r = LabRunner.run(v, t, quick).result
+        val secs = LabReport.build(r, "LAB-2026-0000012", "DONE", "test hipotezi", 1L)
+        assertTrue(secs.map { it.type }.containsAll(listOf("tiles", "forest", "table", "kv", "text")))
+        assertEquals(secs.size, S.decode(S.encode(secs)).size)
+        assertTrue(LabReport.failReason(r).isNotEmpty() || r.cls == "A" || r.cls == "B")
+    }
+
     @Test fun classificationRules() {
         assertEquals("S", LabRunner.classify(100, 5.0, 3.0, 7.0, 0.001, 5.0, true, 80))
         assertEquals("L", LabRunner.classify(2000, 5.0, 3.0, 7.0, 0.001, 5.0, false, 80))

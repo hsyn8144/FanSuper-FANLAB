@@ -66,14 +66,19 @@ data class Eval(
     val tableHits: BooleanArray,
     val coverage: Int,
     val pActual: Double,                 // nihai dağılımın gerçek sonuca verdiği olasılık
-    val logLoss: Double
+    val logLoss: Double,
+    val candCount: Int = 5,              // tahmindeki aday sayısı (Candidate tabanı = candCount / 37)
+    val sectorBase: Double = 0.0,        // en üst adayın sektörünün boyut düzeltmeli tabanı
+    val regionBase: Double = 0.0
 ) {
     val tableCount: Int get() = tableHits.count { it }
     fun toMap(): Map<String, Any?> = mapOf("actual" to actual, "exact" to exact, "cand" to candidate, "rank" to candRank, "nei" to neighbor,
-        "sec" to sector, "reg" to region, "tab" to tableHits.map { if (it) 1 else 0 }, "cov" to coverage, "pa" to pActual, "ll" to logLoss)
+        "sec" to sector, "reg" to region, "tab" to tableHits.map { if (it) 1 else 0 }, "cov" to coverage, "pa" to pActual, "ll" to logLoss,
+        "nc" to candCount, "sb" to sectorBase, "rb" to regionBase)
     companion object {
         fun fromMap(m: Map<String, Any?>) = Eval(m["actual"].jint(), m["exact"].jbool(), m["cand"].jbool(), m["rank"].jint(), m["nei"].jbool(),
-            m["sec"].jbool(), m["reg"].jbool(), BooleanArray(5) { m["tab"].jlist().getOrNull(it).jint() == 1 }, m["cov"].jint(), m["pa"].jnum(), m["ll"].jnum())
+            m["sec"].jbool(), m["reg"].jbool(), BooleanArray(5) { m["tab"].jlist().getOrNull(it).jint() == 1 }, m["cov"].jint(), m["pa"].jnum(), m["ll"].jnum(),
+            m["nc"].jint(5), m["sb"].jnum(0.0), m["rb"].jnum(0.0))
     }
 }
 
