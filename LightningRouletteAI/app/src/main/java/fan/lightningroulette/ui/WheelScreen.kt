@@ -107,10 +107,10 @@ private fun TableLayoutTab(ui: EngineUi) {
         Row(Modifier.fillMaxWidth()) { TCell("1–18", C.card2, picked(TableCats.HIGHLOW, 0)); TCell("ÇİFT", C.card2, picked(TableCats.PARITY, 0)); TCell("KIRMIZI", C.red, picked(TableCats.COLOR, 0)) }
         Row(Modifier.fillMaxWidth()) { TCell("SİYAH", C.black, picked(TableCats.COLOR, 1)); TCell("TEK", C.card2, picked(TableCats.PARITY, 1)); TCell("19–36", C.card2, picked(TableCats.HIGHLOW, 1)) }
     }
-    LrCard(title = "TABLE OLASILIKLARI") {
+    LrCard(title = "TABLE OLASILIKLARI · tüm taraflar") {
         if (p == null) T("Kilitli tahmin yok.", C.dim, 12)
-        for (c in picks) KV(TableCats.IDS[c.cat] + " · " + c.pick, S.pc(c.p * 100) + " / taban " + S.pc(c.base * 100) + " (" + S.sg((c.p - c.base) * 100, 1) + ")", if (c.p > c.base + 0.02) "warn" else "")
-        T("Table modelleri kendi özellikleriyle öğrenir; sayı tahmininin türevi değildir.", C.dim2, 10)
+        for (c in picks) TableDistributionRow(c)
+        T("Her yüzde 37 cep üzerinden hesaplanır; 0 ayrı gösterilir. Table, sayı tahmininin türevi değildir. Yöntem: decay frekansı + son 50 + bir adım geçiş; ağırlıklar sonuç sonrası güncellenir ve dağılımın %40'ı teorik rulet tabanına çekilir.", C.dim2, 10)
     }
     val top = p?.candidates?.firstOrNull()
     if (top != null) {

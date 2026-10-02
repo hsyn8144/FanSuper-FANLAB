@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -116,32 +117,23 @@ fun HomeScreen(ui: EngineUi, onDetail: () -> Unit, onLab: () -> Unit) {
                         NumChip(c.n, 32.dp)
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             T(c.label + "  ·  S${c.sector + 1} · ${Regions.NAMES[c.region]}", C.text, 12, true)
-                            T(c.span.joinToString("·"), C.dim, 11, mono = true)
+                            T("P(k aralığı) ${S.pc(c.mass * 100, 1)} · ${c.span.joinToString("·")}", C.dim, 10, mono = true)
                         }
                         Column(horizontalAlignment = Alignment.End) { T(ptxt, C.text, 13, true, true); T(lift, C.gold, 10, mono = true) }
                     }
                 }
                 Divider1()
-                T("Kapsama: ${pred.coverage}/37 = ${S.pc(pred.coverage * 100.0 / 37)} — daha çok aday/komşu = daha yüksek kapsama; isabet kapsama tabanıyla karşılaştırılır.", C.dim2, 10, modifier = Modifier.padding(top = 6.dp))
+                T("Kapsama: ${pred.coverage}/37 = ${S.pc(pred.coverage * 100.0 / 37)} — aday merkezleri 37 cep dağılımından sıralanır; k komşu aralığı için tabana göre lift en yüksek seçilir. Bu kilit sonuç girilene kadar değişmez.", C.dim2, 10, modifier = Modifier.padding(top = 6.dp))
             }
             LrCard(title = "TABLE · 5 kategori (sayıdan bağımsız model)") {
                 for (call in pred.table) {
                     if ((mask shr call.cat) and 1 == 0) continue
-                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        T(TableCats.IDS[call.cat], C.dim, 10, true, modifier = Modifier.weight(1.1f))
-                        T(call.pick, C.text, 13, true, modifier = Modifier.weight(1.3f))
-                        Box(Modifier.weight(1.6f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(C.card2)) {
-                            Box(Modifier.fillMaxWidth(call.p.toFloat().coerceIn(0f, 1f)).height(8.dp).background(C.warn))
-                            Row(Modifier.fillMaxWidth()) {
-                                Box(Modifier.weight(call.base.toFloat().coerceIn(0.01f, 0.99f)).height(8.dp))
-                                Box(Modifier.width(2.dp).height(8.dp).background(C.gold))
-                                Box(Modifier.weight((1f - call.base.toFloat()).coerceIn(0.01f, 0.99f)).height(8.dp))
-                            }
-                        }
-                        T(S.pc(call.p * 100), C.warn, 12, true, true, TextAlign.End, Modifier.weight(0.9f))
-                    }
+                    TableDistributionRow(call)
                 }
-                T("Sarı çizgi = tesadüf tabanı. Table, sayı tahmininin türevi değildir.", C.dim2, 10)
+                T(
+                    "Her satır tüm tarafları ve ayrı 0 olasılığını gösterir. Yüzde; azalan ağırlıklı frekans, son 50 spin ve son sınıftan geçişi birleştirir; üç tahmincinin ağırlığı sonuç girildikçe güncellenir. Model dağılımı %60, teorik Avrupa ruleti tabanı %40 ağırlıktadır. Tahmin yüzdesidir, garanti/kalibre başarı değildir.",
+                    C.dim2, 10
+                )
             }
         }
         Banner(DISCLAIMER, "warn")
@@ -262,7 +254,30 @@ fun SummaryCard(ui: EngineUi, onLab: () -> Unit) {
     }
 }
 
-/** Tahmin detayı (Ekran 11): wheel, geometri, skor katkıları, Table uyumu, meclis uyuşmazlığı. */
+@Composable
+private fun FullPocketDistribution(pred: PredView) {
+    val selected = pred.candidates.map { it.n }.toSet()
+    val ranked = (0 until Wheel.N).sortedWith(compareByDescending<Int> { pred.pFinal.getOrElse(it) { 0.0 } }.thenBy { it })
+    LrCard(title = "37 CEP DAĞILIMI · tam sıralama") {
+        T("Her cepten gelen P(sonraki sonuç); altın halka NEXT adaylarını gösterir. Yüzdelerin toplamı yaklaşık %100’dür.", C.dim2, 10)
+        for ((rowIndex, row) in ranked.chunked(6).withIndex()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                for ((columnIndex, n) in row.withIndex()) {
+                    val rank = rowIndex * 6 + columnIndex + 1
+                    Column(Modifier.weight(1f).padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        NumChip(n, 27.dp, 10, ring = n in selected)
+                        T("#$rank", C.dim2, 8, mono = true)
+                        T(S.pc(pred.pFinal.getOrElse(n) { 0.0 } * 100, 1), C.text, 9, true, true)
+                    }
+                }
+                repeat(6 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        T("Bu, 37 sonucun tamamının mevcut kilitli dağılımıdır; aday listesi 3–5 merkez gösterir. Yeni sonuç girilince öğrenme yapılır ve bir sonraki spin için yeni kilit üretilir.", C.dim2, 10)
+    }
+}
+
+/** Tahmin detayı (Ekran 11): wheel, tam cep dağılımı, geometri, skor katkıları, Table uyumu. */
 @Composable
 fun PredictionDetail(ui: EngineUi, onBack: () -> Unit, onLab: () -> Unit) {
     val pred = ui.pred
@@ -273,6 +288,7 @@ fun PredictionDetail(ui: EngineUi, onBack: () -> Unit, onLab: () -> Unit) {
         T(pred.code + " · referans spin #" + pred.refCount, C.gold, 12, true, true, modifier = Modifier.padding(top = 8.dp))
         WheelView(pred.candidates, ui.last8, sectors, selected = -1)
         T("Altın halka = merkez numara · renkli yay = komşu aralığı · beyaz noktalar SON 8 (1 = en yeni).", C.dim2, 10)
+        FullPocketDistribution(pred)
         val top = pred.candidates.firstOrNull()
         if (top != null) {
             LrCard(title = "GEOMETRİ · en üst aday ${top.label}") {
@@ -282,7 +298,8 @@ fun PredictionDetail(ui: EngineUi, onBack: () -> Unit, onLab: () -> Unit) {
                     val last = ui.last8[0]
                     KV("Son sonuca (${last}) mesafe", "saat yönü ${Wheel.cw(last, top.n)} · ters ${Wheel.ccw(last, top.n)} · dairesel ${Wheel.circ(last, top.n)}")
                 }
-                KV("Kalibre P(exact)", S.pc(top.p * 100, 2) + "  (×" + S.f(top.p * Wheel.N, 2) + ")")
+                KV("Kalibre P(merkez)", S.pc(top.p * 100, 2) + "  (×" + S.f(top.p * Wheel.N, 2) + ")")
+                KV("Kalibre P(k komşu aralığı)", S.pc(top.mass * 100, 2) + " · ${top.span.size} cep")
             }
         }
         for ((i, c) in pred.candidates.withIndex()) {

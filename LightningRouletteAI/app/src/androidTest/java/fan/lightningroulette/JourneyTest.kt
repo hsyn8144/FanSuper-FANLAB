@@ -16,6 +16,7 @@ import fan.lightningroulette.engine.Engine
 import fan.lightningroulette.core.LabTabs as CoreLabTabs
 import fan.lightningroulette.overlay.OverlayService
 import fan.lightningroulette.ui.MainActivity
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -95,6 +96,23 @@ class JourneyTest {
         for (s in listOf("İçe aktar", "Sürümler", "Dışa aktar", "Spinler")) { seg(s); rule.waitForIdle() }
         // ── 8) Ayarlar + tanılama
         nav(5); waitText("Ayarlar")
+        seg("Overlay")
+        val oldMode = Engine.settings.ovMode
+        val newMode = if (oldMode == "icon") "vertical" else "icon" // seçenek yatay kaydırma sonundadır
+        val modeChip = rule.onNodeWithTag("choice_ovMode_$newMode")
+        modeChip.performScrollTo(); modeChip.performClick()
+        rule.waitForIdle()
+        assertEquals("görünüm ayarı gerçek SharedPreferences değerini değiştirmeli", newMode, Engine.settings.ovMode)
+        val restoreMode = rule.onNodeWithTag("choice_ovMode_$oldMode")
+        restoreMode.performScrollTo(); restoreMode.performClick()
+        rule.waitForIdle()
+        val oldVibrate = Engine.settings.ovVibrate
+        val vibrationRow = rule.onNodeWithTag("setting_Titreşim geri bildirimi")
+        vibrationRow.performScrollTo(); vibrationRow.performClick()
+        rule.waitForIdle()
+        assertEquals("switch satır başlığı da dokunulabilir olmalı", !oldVibrate, Engine.settings.ovVibrate)
+        vibrationRow.performScrollTo(); vibrationRow.performClick()
+        rule.waitForIdle()
         for (s in listOf("Overlay", "Python/LAB", "Veri", "Loglar", "Hakkında")) { seg(s); rule.waitForIdle() }
         seg("Tanılama"); click("Tümünü çalıştır")
         waitText("Geçen / toplam", 30_000)

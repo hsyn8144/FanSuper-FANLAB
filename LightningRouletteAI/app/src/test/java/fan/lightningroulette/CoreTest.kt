@@ -38,6 +38,45 @@ class CoreTest {
         assertEquals(2, TableCats.classOf(TableCats.COLUMN, 21))
         for (c in 0 until 5) assertEquals(-1, TableCats.classOf(c, 0))
         assertEquals(1, TableCats.classOf(TableCats.COLOR, 17))   // siyah
+        assertEquals(0, TableCats.classOf(TableCats.HIGHLOW, 18)) // 18 son küçük, 19 ilk büyük
+        assertEquals(1, TableCats.classOf(TableCats.HIGHLOW, 19))
+        assertEquals(listOf("1–12", "13–24", "25–36"), (0..2).map { TableCats.optionLabel(TableCats.DOZEN, it) })
+        assertEquals(listOf("Sütun 1", "Sütun 2", "Sütun 3"), (0..2).map { TableCats.optionLabel(TableCats.COLUMN, it) })
+        for (cat in 0 until 5) {
+            val k = TableCats.classes(cat)
+            assertEquals("0 · yeşil", TableCats.optionLabel(cat, k))
+            assertEquals(1.0 / 37.0, TableCats.baseline(cat, k), 1e-12)
+            assertEquals(if (k == 2) 18.0 / 37.0 else 12.0 / 37.0, TableCats.baseline(cat, 0), 1e-12)
+        }
+    }
+
+    @Test fun tablePredictionsKeepEverySideAndZeroProbability() {
+        val table = TableEngine(Params(window = 100))
+        var history = IntArray(0)
+        repeat(100) {
+            table.predict(history)
+            table.learn(history, 1) // sürekli kırmızı sonuç: öğrenme yalnızca gerçek sonuçtan sonra
+            history += 1
+        }
+        val calls = table.predict(history)
+        assertEquals(5, calls.size)
+        for (call in calls) {
+            val k = TableCats.classes(call.cat)
+            assertEquals(k + 1, call.probs.size) // bahis sınıfları + ayrı 0
+            assertEquals(1.0, call.probs.sum(), 1e-9)
+            assertEquals(call.probs[call.cls], call.p, 1e-12)
+            assertEquals(TableCats.baseline(call.cat), call.base, 1e-12)
+            assertEquals(call.probs[k], call.zeroProbability, 1e-12)
+        }
+        val color = calls.first { it.cat == TableCats.COLOR }
+        assertTrue("kırmızı geçmişi modelin tüm yan bahislerini göstermeli", color.probability(0) > 0.0)
+        assertTrue("siyah alternatifi de dağılımda bulunmalı", color.probability(1) > 0.0)
+        assertTrue("0 hiçbir dış bahis sınıfına girmese de olasılığı tutulmalı", color.zeroProbability > 0.0)
+        assertTrue("öğrenilen kırmızı dağılımı sabit eşit tabana çökmesin", color.probability(0) > color.probability(1))
+        val dozen = calls.first { it.cat == TableCats.DOZEN }
+        assertEquals(4, dozen.probs.size) // 3 düzine + 0
+        val column = calls.first { it.cat == TableCats.COLUMN }
+        assertEquals(4, column.probs.size) // 3 sütun + 0
     }
 
     @Test fun jsonRoundTrip() {
@@ -59,6 +98,17 @@ class CoreTest {
             assertEquals(1.0, p.pFinal.sum(), 1e-9)
             assertEquals(1.0, p.pKotlin.sum(), 1e-9)
         }
+    }
+
+    @Test fun recommendationsRespondToHistoryInsteadOfUsingFixedNumbers() {
+        val config = BrainConfig(nCand = 5)
+        val afterOne = Brain(config).predict(IntArray(500) { 1 }, null)
+        val afterThirtyTwo = Brain(config).predict(IntArray(500) { 32 }, null)
+
+        assertEquals("one-sided history should change the top recommendation", 1, afterOne.candidates.first().n)
+        assertEquals("a different one-sided history should change it again", 32, afterThirtyTwo.candidates.first().n)
+        assertTrue(afterOne.pFinal[1] > afterOne.pFinal[32])
+        assertTrue(afterThirtyTwo.pFinal[32] > afterThirtyTwo.pFinal[1])
     }
 
     @Test fun exactAndCandidateHitsAreSeparate() {

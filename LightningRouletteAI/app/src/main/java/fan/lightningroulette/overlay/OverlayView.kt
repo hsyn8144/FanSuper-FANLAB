@@ -14,7 +14,10 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.widget.LinearLayout
 import android.widget.TextView
+import fan.lightningroulette.core.Candidate
 import fan.lightningroulette.core.S
+import fan.lightningroulette.core.TableCall
+import fan.lightningroulette.core.TableCats
 import fan.lightningroulette.core.Wheel
 import fan.lightningroulette.engine.Engine
 import fan.lightningroulette.engine.EngineUi
@@ -111,6 +114,27 @@ class OverlayView(
 
     private fun warnList(): List<String> = if (st.ovWarn) last.flags.filter { !it.startsWith("Yüksek") } else emptyList()
 
+    /** pctMode=cal: final/kalibre dağılım; model: Kotlin meclisinin ham olasılığı. */
+    private fun candidateProbability(c: Candidate): Double =
+        if (st.pctMode == "model") last.pred?.pKotlin?.getOrNull(c.n) ?: c.p else c.p
+
+    private fun tableCategoryLabel(cat: Int): String = when (cat) {
+        TableCats.COLOR -> "RENK"
+        TableCats.PARITY -> "TEK/ÇFT"
+        TableCats.HIGHLOW -> "ALT/ÜST"
+        TableCats.DOZEN -> "DÜZİNE"
+        else -> "SÜTUN"
+    }
+
+    private fun tableOptionLabel(cat: Int, i: Int): String = when {
+        i == TableCats.classes(cat) -> "0"
+        cat == TableCats.COLOR -> if (i == 0) "KIRMIZI" else "SİYAH"
+        cat == TableCats.PARITY -> if (i == 0) "ÇİFT" else "TEK"
+        cat == TableCats.HIGHLOW -> if (i == 0) "1–18" else "19–36"
+        cat == TableCats.DOZEN -> listOf("1–12", "13–24", "25–36")[i]
+        else -> "S${i + 1}"
+    }
+
     // ───────── başlık çubuğu: uyarı · kilit · küçült · kapat (sürükleme tutacağı)
     private fun titleBar(): View {
         val bar = LinearLayout(context).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setOnTouchListener(dragListener) }
@@ -129,12 +153,14 @@ class OverlayView(
     private fun nextRow(): View {
         val p = last.pred
         val box = LinearLayout(context).apply { orientation = VERTICAL }
-        box.addView(tv("NEXT", 9f, label, true))
+        box.addView(tv("NEXT · P(cep) / P(k komşu aralığı)", 8.5f, label, true))
         val r = LinearLayout(context).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         if (p == null) r.addView(tv("öğreniyor ${minOf(last.spinCount, last.minSample)}/${last.minSample} spin", 11f, label))
         else for ((i, c) in p.candidates.withIndex()) { if (i >= st.ovNext) break
-            val col = LinearLayout(context).apply { orientation = VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(3f) } }
-            col.addView(chip(c.n, 24f, i == 0)); col.addView(tv(c.kLabel, 8f, label))
+            val col = LinearLayout(context).apply { orientation = VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(2f) } }
+            col.addView(chip(c.n, 23f, i == 0))
+            col.addView(tv(S.pc(candidateProbability(c) * 100, 0), 7.5f, orange, true, mono = true))
+            col.addView(tv("${c.kLabel} · ${S.pc(c.mass * 100, 0)}", 6.7f, label, mono = true))
             r.addView(col)
         }
         box.addView(r)
@@ -144,18 +170,70 @@ class OverlayView(
     private fun tableBox(twoCols: Boolean): View {
         val p = last.pred
         val box = LinearLayout(context).apply { orientation = VERTICAL }
-        box.addView(tv("TABLE", 9f, label, true))
+        box.addView(tv("TABLE · tüm taraflar / 0 dahil", 8.5f, label, true))
         if (p == null) { box.addView(tv("—", 11f, label)); return box }
-        val mask = st.tableMask
-        val items = p.table.filter { (mask shr it.cat) and 1 == 1 }
-        fun line(c: fan.lightningroulette.core.TableCall) = row(tv(c.pick, 11f, Color.WHITE, true).apply { layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f) }, tv(S.pc(c.p * 100, 0), 11f, orange, true, true))
+        val items = p.table.filter { (st.tableMask shr it.cat) and 1 == 1 }
+        val categoryWidth = if (twoCols) 31f else 39f
+
+        fun compactOptionLabel(c: TableCall, i: Int): String {
+            if (!twoCols || i == TableCats.classes(c.cat)) return tableOptionLabel(c.cat, i)
+            return when (c.cat) {
+                TableCats.COLOR -> if (i == 0) "KRM" else "SYH"
+                TableCats.PARITY -> if (i == 0) "ÇFT" else "TEK"
+                TableCats.HIGHLOW -> if (i == 0) "1–18" else "19–36"
+                TableCats.DOZEN -> listOf("1–12", "13–24", "25–36")[i]
+                else -> "S${i + 1}"
+            }
+        }
+
+        fun line(c: TableCall): View = LinearLayout(context).apply {
+            orientation = HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val catLabel = when {
+                !twoCols -> tableCategoryLabel(c.cat)
+                c.cat == TableCats.PARITY -> "TEK/Ç"
+                c.cat == TableCats.HIGHLOW -> "ALT/ÜST"
+                c.cat == TableCats.DOZEN -> "DÜZİNE"
+                c.cat == TableCats.COLUMN -> "SÜTUN"
+                else -> "RENK"
+            }
+            addView(tv(catLabel, if (twoCols) 6.5f else 7.5f, label, true).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }, LayoutParams(dp(categoryWidth), dp(31f)))
+            val k = TableCats.classes(c.cat)
+            for (i in 0..k) {
+                val selected = i == c.cls
+                val zero = i == k
+                val fill = when {
+                    c.cat == TableCats.COLOR && i == 0 -> Color.parseColor("#B71C1C")
+                    c.cat == TableCats.COLOR && i == 1 -> Color.parseColor("#212121")
+                    zero -> Color.parseColor("#2E7D32")
+                    selected -> Color.argb(90, 255, 197, 49)
+                    else -> Color.argb(90, 24, 36, 59)
+                }
+                val chip = tv("${compactOptionLabel(c, i)}\n${S.pc(c.probability(i) * 100, 0)}",
+                    if (twoCols) 6.5f else 7.5f, if (selected) gold else Color.WHITE, selected, mono = !twoCols).apply {
+                    gravity = Gravity.CENTER
+                    maxLines = 2
+                    setPadding(dp(1f), 0, dp(1f), 0)
+                    background = bg(fill, 4f, if (selected) Color.parseColor("#FFFFC531") else 0)
+                    layoutParams = LayoutParams(0, dp(31f), 1f).apply { setMargins(dp(0.5f), 0, dp(0.5f), 0) }
+                    contentDescription = "${tableOptionLabel(c.cat, i)} ${S.pc(c.probability(i) * 100, 1)}${if (selected) ", modelin seçimi" else ""}"
+                }
+                addView(chip)
+            }
+        }
+
         if (twoCols) {
             val cols = LinearLayout(context).apply { orientation = HORIZONTAL }
-            val a = LinearLayout(context).apply { orientation = VERTICAL; layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8f) } }
+            val a = LinearLayout(context).apply { orientation = VERTICAL; layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(5f) } }
             val b = LinearLayout(context).apply { orientation = VERTICAL; layoutParams = LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f) }
             for ((i, c) in items.withIndex()) (if (i < 3) a else b).addView(line(c))
             cols.addView(a); cols.addView(b); box.addView(cols)
         } else for (c in items) box.addView(line(c))
+        box.addView(tv("Model: decay + son 50 + geçiş · %60 model / %40 rulet tabanı. 0 dış bahislerin dışında.", 6.8f, label))
         return box
     }
 
@@ -249,9 +327,19 @@ class OverlayView(
                 val t = StringBuilder()
                 if (p == null) t.append("NEXT: öğreniyor ${minOf(last.spinCount, last.minSample)}/${last.minSample}\n")
                 else {
-                    t.append("NEXT: ").append(p.candidates.take(st.ovNext).joinToString(" ") { it.n.toString() }).append('\n')
-                    t.append("TABLE:\n")
-                    for (c in p.table) if ((st.tableMask shr c.cat) and 1 == 1) t.append("  ").append(c.pick).append(' ').append(S.pc(c.p * 100, 0)).append('\n')
+                    t.append("NEXT (cep% / k-aralık%): ")
+                        .append(p.candidates.take(st.ovNext).joinToString("  ") { c ->
+                            "${c.n} ${S.pc(candidateProbability(c) * 100, 0)} ${c.kLabel}/${S.pc(c.mass * 100, 0)}"
+                        }).append('\n')
+                    t.append("TABLE · tüm alternatifler:\n")
+                    for (c in p.table) if ((st.tableMask shr c.cat) and 1 == 1) {
+                        t.append("  ").append(tableCategoryLabel(c.cat)).append(' ')
+                        for (i in 0..TableCats.classes(c.cat)) {
+                            t.append(tableOptionLabel(c.cat, i)).append(':').append(S.pc(c.probability(i) * 100, 0)).append(' ')
+                        }
+                        t.append("★ ").append(c.pick).append('\n')
+                    }
+                    t.append("Table yüzdesi: decay + son 50 + geçiş; %60 model/%40 rulet tabanı. 0 ayrı.\n")
                 }
                 t.append("SON 8: ").append(if (last.last8.isEmpty()) "-" else last.last8.joinToString(" | "))
                 addView(pad(tv(t.toString(), 11f, Color.WHITE, false, true)))

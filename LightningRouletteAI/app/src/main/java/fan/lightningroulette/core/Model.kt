@@ -26,6 +26,9 @@ data class Candidate(
 data class TableCall(val cat: Int, val cls: Int, val p: Double, val base: Double, val probs: DoubleArray) {
     val label: String get() = TableCats.LABELS[cat][cls]
     val pick: String get() = TableCats.PICKS[cat][cls]
+    /** Tüm sınıflar + son indekste (classes(cat)) rulet sıfırı. */
+    fun probability(classIndex: Int): Double = probs.getOrNull(classIndex) ?: 0.0
+    val zeroProbability: Double get() = probability(TableCats.classes(cat))
     fun toMap(): Map<String, Any?> = mapOf("cat" to cat, "cls" to cls, "p" to p, "base" to base, "probs" to probs)
     companion object {
         fun fromMap(m: Map<String, Any?>) = TableCall(m["cat"].jint(), m["cls"].jint(), m["p"].jnum(), m["base"].jnum(), m["probs"].jdoubles())

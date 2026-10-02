@@ -276,7 +276,7 @@ class TableEngine(private val pr: Params) {
     private fun memberProbs(cat: Int, h: IntArray): List<DoubleArray> {
         val k = TableCats.classes(cat); val m = k + 1
         val lab = labels(cat, h, k); val n = lab.size
-        val base = DoubleArray(m) { if (it == k) 1.0 / Wheel.N else (if (k == 2) 18.0 else 12.0) / Wheel.N }
+        val base = DoubleArray(m) { TableCats.baseline(cat, it) }
         val lam = if (pr.decay > 0) pr.decay else 0.02
         val dm = min(n, max(pr.window, 100))
         val fd = DoubleArray(m) { base[it] * 4 }
@@ -304,7 +304,7 @@ class TableEngine(private val pr: Params) {
         return List(5) { cat ->
             val k = TableCats.classes(cat)
             val mix = hedges[cat].mix(ms[cat])
-            val base = DoubleArray(k + 1) { if (it == k) 1.0 / Wheel.N else (if (k == 2) 18.0 else 12.0) / Wheel.N }
+            val base = DoubleArray(k + 1) { TableCats.baseline(cat, it) }
             val cal = DoubleArray(k + 1) { base[it] + shrink * (mix[it] - base[it]) }
             norm(cal)
             var best = 0; for (c in 1 until k) if (cal[c] > cal[best]) best = c
