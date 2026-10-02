@@ -100,7 +100,8 @@ class JourneyTest {
         waitText("Geçen / toplam", 30_000)
         rule.waitUntil(30_000) { has("◔ çalışıyor…", true) || has("Atlanan", true) && has("✓ ", true) }
         rule.waitUntil(300_000) { !has("◔ çalışıyor…", true) }
-        assertTrue("tanılamada ✗ (kaldı) olmamalı: ${rule.onAllNodesWithText("✗ ", substring = true).fetchSemanticsNodes().size} başarısız. ${diag()}", !has("✗ ", true))
+        val failed = fan.lightningroulette.engine.SelfTest.last.filter { it.status == "fail" }
+        assertTrue("tanılamada kalan test: " + failed.joinToString(" || ") { "${it.group} / ${it.name}: ${it.detail} (${it.code})" } + " — toplam ${fan.lightningroulette.engine.SelfTest.last.size}", failed.isEmpty())
         // ── 9) overlay servisi (izin adb ile verilir)
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         if (OverlayService.canDraw(ctx)) {

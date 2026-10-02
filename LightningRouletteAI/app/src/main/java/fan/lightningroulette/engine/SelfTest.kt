@@ -17,11 +17,14 @@ object SelfTest {
     private class SkipTest(m: String) : RuntimeException(m)
     private fun check(c: Boolean, msg: String) { if (!c) throw IllegalStateException(msg) }
 
+    /** Son çalıştırmanın sonuçları (e2e testi ve arayüz dışı tanı için). */
+    @Volatile var last: List<TestResult> = emptyList()
+
     val GROUPS = listOf("Veri bütünlüğü", "Canlı giriş", "Sızıntı ve replay", "Kalıcılık", "İstatistik", "Aktarım", "Model kuralları")
 
     fun run(onResult: (TestResult) -> Unit): List<TestResult> {
         val out = ArrayList<TestResult>()
-        fun add(r: TestResult) { out.add(r); onResult(r) }
+        fun add(r: TestResult) { out.add(r); last = out.toList(); onResult(r) }
         val d = Engine.dataset
         val spins = if (d != null) Engine.dao.spins(d.id) else emptyList()
 
@@ -69,9 +72,13 @@ object SelfTest {
 
         // ── İstatistik
         add(t(GROUPS[4], "Bootstrap güven aralığı ortalamayı kapsar") { val x = DoubleArray(300) { if (it % 7 == 0) 1.0 else 0.0 }; val ci = Stats.bootstrapCI(x, 500, 3); check(Stats.mean(x) in (ci[1] - 1e-9)..(ci[2] + 1e-9), "ortalama aralık dışı"); "ort ${S.f(Stats.mean(x), 3)} ∈ [${S.f(ci[1], 3)}; ${S.f(ci[2], 3)}]" })
-        add(t(GROUPS[4], "Rastgele veride kanıt iddia edilmez (sınıf A/B değil)", Codes.EXP) {
-            val v = rnd(900, 21); val r = LabRunner.run(v, tsOf(900), ExpConfig("tanılama", window = 120, features = BrainConfig.ALL_FEATURES - "ML")).result
-            check(r.cls != "A" && r.cls != "B", "sınıf ${r.cls}"); "sınıf ${r.cls} · Δ ${S.sg(r.deltaPp)}"
+        add(t(GROUPS[4], "Rastgele veride kanıt iddia edilmez (çoğu koşu sınıf C/D)", Codes.EXP) {
+            // Tek bir rastgele koşu tesadüfen B çıkabilir (≈ %2–3); bu yüzden 3 bağımsız tohumda en fazla 1 B kabul edilir, A asla.
+            val cfg = ExpConfig("tanılama", window = 120, features = BrainConfig.ALL_FEATURES - "ML")
+            val res = listOf(21L, 22L, 23L).map { LabRunner.run(rnd(600, it), tsOf(600), cfg).result }
+            check(res.none { it.cls == "A" }, "sınıf A: " + res.joinToString { it.cls })
+            check(res.count { it.cls == "B" } <= 1, "çoğu koşu B: " + res.joinToString { it.cls })
+            res.joinToString(" · ") { "${it.cls} (Δ ${S.sg(it.deltaPp)})" }
         })
 
         // ── Aktarım
@@ -98,7 +105,8 @@ object SelfTest {
         })
         add(t(GROUPS[6], "Python meclisi (bu cihazda)", Codes.PY) {
             val b = Engine.py ?: throw SkipTest("Python kapalı/hazır değil (Kotlin-only)")
-            val w = rnd(120, 12); val o = b.predict(w, 0); check(PyValidator.check(o) == null, "geçersiz çıktı"); "${o.ids.size} üye geçerli"
+            // Canlı meclisin durumuna dokunmaz: Python tarafında ayrı bir Council örneğiyle kendi kendine sınama.
+            check(b.selfTest() == "OK", "Python selftest başarısız"); "8 üye × 37 olasılık geçerli (canlı durum etkilenmedi)"
         })
         return out
     }

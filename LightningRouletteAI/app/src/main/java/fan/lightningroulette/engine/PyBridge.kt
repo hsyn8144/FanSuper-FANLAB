@@ -63,6 +63,9 @@ class PyBridge(private val ctx: Context, private val bounds: IntArray) : PyHost 
     /** Python meclisini sıfırla (veri sıfırlama / dataset değişimi). */
     fun reset() { configure(); stateFile.delete() }
 
+    /** Canlı durumdan bağımsız kendi kendine sınama (ayrı Council örneği). */
+    fun selfTest(): String = mod.callAttr("selftest").toString()
+
     fun info(): String = try { mod.callAttr("info").toString() } catch (e: Exception) { "hata: ${e.message}" }
 
     // ── LAB: parça parça replay (iptal/ilerleme); her adımda yalnızca values[:i] görülür

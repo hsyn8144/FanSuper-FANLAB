@@ -84,10 +84,10 @@ def cmd_readme():
             secs.append((m['section'], []))
         secs[-1][1].append(m)
     L = []
-    L.append('# ⚡ Lightning Roulette AI — Ekran Tasarımları (onay bekliyor)\n')
+    L.append('# ⚡ Lightning Roulette AI — Ekran Tasarımları\n')
     if os.environ.get('LRA_DRAFT'):
         L.append(f'> 🚧 **TASLAK:** sayfa üretimi sürüyor — şu an **{len(man)}** sayfa hazır, toplam yaklaşık 65 sayfa olacak. Bu bir ara sürümdür.\n')
-    L.append('> **Durum:** Bu klasör yalnızca **tasarım önizlemesidir**. Uygulama kodu **henüz yazılmadı**; görseller onaylanınca geliştirme başlayacak.\n')
+    L.append('> **Durum:** Bu klasör **tasarım önizlemesidir** (referans). Uygulama bu tasarıma göre yazıldı: bkz. [`../README.md`](../README.md). Uygulamada gerçek veriye bağlı ekranlar (LAB sekmeleri, listeler) örnek sayılardan farklı değerler gösterir.\n')
     L.append('Her sayfa: telefon ekranı + **numaralı işaretler** + altında her sekme/buton/alanın ne yaptığını anlatan açıklama listesi + ilgili prompt maddeleri (§).')
     L.append('Tüm sayı ve yüzdeler **örnektir**; uygulama hiçbir sonucun garanti olduğunu iddia etmez (tahmin → LOCK → sonuç → değerlendirme → öğrenme).\n')
     L.append('## İndir\n')
@@ -111,7 +111,7 @@ def cmd_readme():
         L.append('')
     L.append('## Onay\n')
     L.append('Beğendiğin / değiştirmek istediğin sayfaları **numarasıyla** söylemen yeterli (ör. “12 numaralı sayfada şunu değiştir”). '
-             'Onay verdiğinde uygulama (Kotlin + Python, Room, overlay, LAB, test, README) bu tasarıma göre yazılıp CI ile derlenecek.\n')
+             'Uygulama (Kotlin + Python, Room, overlay, LAB, test, README) bu tasarıma göre yazıldı ve CI ile derleniyor.\n')
     L.append('## Yeniden üretme\n')
     L.append('Görseller `_src/` altındaki stdlib-only Python üretici + Chromium ile oluşturulur (`_src/README.md`).\n')
     with open(os.path.join(ROOT, 'README.md'), 'w', encoding='utf-8') as fh:

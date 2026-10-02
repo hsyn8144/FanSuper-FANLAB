@@ -1,6 +1,6 @@
-# ⚡ Lightning Roulette AI — Ekran Tasarımları (onay bekliyor)
+# ⚡ Lightning Roulette AI — Ekran Tasarımları
 
-> **Durum:** Bu klasör yalnızca **tasarım önizlemesidir**. Uygulama kodu **henüz yazılmadı**; görseller onaylanınca geliştirme başlayacak.
+> **Durum:** Bu klasör **tasarım önizlemesidir** (referans). Uygulama bu tasarıma göre yazıldı: bkz. [`../README.md`](../README.md). Uygulamada gerçek veriye bağlı ekranlar (LAB sekmeleri, listeler) örnek sayılardan farklı değerler gösterir.
 
 Her sayfa: telefon ekranı + **numaralı işaretler** + altında her sekme/buton/alanın ne yaptığını anlatan açıklama listesi + ilgili prompt maddeleri (§).
 Tüm sayı ve yüzdeler **örnektir**; uygulama hiçbir sonucun garanti olduğunu iddia etmez (tahmin → LOCK → sonuç → değerlendirme → öğrenme).
@@ -81,7 +81,7 @@ Tüm sayı ve yüzdeler **örnektir**; uygulama hiçbir sonucun garanti olduğun
 
 ## Onay
 
-Beğendiğin / değiştirmek istediğin sayfaları **numarasıyla** söylemen yeterli (ör. “12 numaralı sayfada şunu değiştir”). Onay verdiğinde uygulama (Kotlin + Python, Room, overlay, LAB, test, README) bu tasarıma göre yazılıp CI ile derlenecek.
+Beğendiğin / değiştirmek istediğin sayfaları **numarasıyla** söylemen yeterli (ör. “12 numaralı sayfada şunu değiştir”). Uygulama (Kotlin + Python, Room, overlay, LAB, test, README) bu tasarıma göre yazıldı ve CI ile derleniyor.
 
 ## Yeniden üretme
 
