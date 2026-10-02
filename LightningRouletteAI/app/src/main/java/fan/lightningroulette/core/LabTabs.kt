@@ -9,17 +9,61 @@ import kotlin.math.sqrt
 /** Deney listesi satırı (veritabanından). */
 class ExpRow(val id: Long, val code: String, val hypothesis: String, val params: String, val status: String, val cls: String, val deltaPp: Double, val n: Int, val reason: String, val createdAt: Long)
 
+/** Önbelleğe alınabilir koşu özeti (Brain nesnesi içermez): LAB sekmeleri bundan beslenir. */
+class RunSnap(
+    val result: ExpResult, val steps: List<StepRec>, val oosStart: Int, val valStart: Int,
+    val gates: List<Gate>, val processed: Int, val total: Int, val hash: Long,
+    val titles: List<String>, val ids: List<String>, val wK: DoubleArray, val wP: DoubleArray?
+) {
+    val leakFree: Boolean get() = gates.all { it.ok }
+
+    fun toJson(): String = Json.stringify(mapOf(
+        "res" to result.toJson(), "steps" to steps.map { StepIO.toList(it) }, "os" to oosStart, "vs" to valStart,
+        "gates" to gates.map { listOf(it.name, if (it.ok) 1 else 0, it.detail) }, "proc" to processed, "tot" to total, "hash" to hash.toString(),
+        "titles" to titles, "ids" to ids, "wk" to wK.toList(), "wp" to wP?.toList()
+    ))
+
+    companion object {
+        fun of(r: ExpRun): RunSnap = RunSnap(
+            r.result, r.steps, r.oosStart, r.valStart, r.replay.gates, r.replay.processed, r.replay.total, r.replay.hash,
+            r.replay.brain.members.map { it.title }, r.replay.brain.members.map { it.id }, r.replay.brain.hedgeK.w.copyOf(), r.replay.brain.hedgeP?.w?.copyOf()
+        )
+
+        fun fromJson(s: String): RunSnap? = try {
+            val m = Json.parse(s).jmap()
+            RunSnap(
+                ExpResult.fromJson(m["res"].jstr())!!, m["steps"].jlist().map { StepIO.fromList(it.jlist()) }, m["os"].jint(), m["vs"].jint(),
+                m["gates"].jlist().map { val l = it.jlist(); Gate(l[0].jstr(), l[1].jint() == 1, l[2].jstr()) }, m["proc"].jint(), m["tot"].jint(), m["hash"].jstr().toLong(),
+                m["titles"].jlist().map { it.jstr() }, m["ids"].jlist().map { it.jstr() }, m["wk"].jdoubles(), m["wp"]?.jdoubles()
+            )
+        } catch (e: Exception) { null }
+    }
+}
+
+/** Büyük JSON değerlerini SQLite satır sınırına (≈2 MB CursorWindow) takılmadan saklamak için GZIP + Base64. */
+object Pack {
+    fun pack(s: String): String {
+        val bo = java.io.ByteArrayOutputStream()
+        java.util.zip.GZIPOutputStream(bo).use { it.write(s.toByteArray(Charsets.UTF_8)) }
+        return java.util.Base64.getEncoder().encodeToString(bo.toByteArray())
+    }
+    fun unpack(s: String): String {
+        val raw = java.util.Base64.getDecoder().decode(s)
+        return java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(raw)).use { String(it.readBytes(), Charsets.UTF_8) }
+    }
+}
+
 /** LAB sekmelerinin girdisi. run: canlı yapılandırmayla yapılan genel walk-forward (Python varsa dahil). */
 class LabCtx(
-    val values: IntArray, val ts: LongArray, val sectors: Sectors, val run: ExpRun, val cfg: ExpConfig,
+    val values: IntArray, val ts: LongArray, val sectors: Sectors, val run: RunSnap, val cfg: ExpConfig,
     val pyIncluded: Boolean, val pyTitles: List<String>, val determinism: Pair<Long, Long>?, val suites: Suites?,
     val experiments: List<ExpRow>, val dataErrors: Int, val datasetLabel: String, val championLabel: String = "v1.0.0"
 ) {
     val n: Int get() = values.size
     val oos: List<StepRec> by lazy { run.steps.filter { it.i >= run.oosStart } }
     val valSteps: List<StepRec> by lazy { run.steps.filter { it.i < run.oosStart } }
-    val memberTitles: List<String> get() = run.replay.brain.members.map { it.title }
-    val memberIds: List<String> get() = run.replay.brain.members.map { it.id }
+    val memberTitles: List<String> get() = run.titles
+    val memberIds: List<String> get() = run.ids
     val c: Int get() = cfg.cands
     val regime: RegimeResult by lazy { An.regimes(this) }
     val phi: Array<DoubleArray> by lazy { An.phiMatrix(this) }
@@ -360,7 +404,7 @@ object LabTabs {
     private fun memberClass(delta: Double, se: Double, n: Int): String { val z = if (se > 0) delta / se else 0.0; return if (n < 300) "S" else if (z >= 3) "B" else if (z <= -3) "D" else "C" }
     private fun models(c: LabCtx): List<Sec> {
         val o = c.oos; val n = o.size; val base = 5.0 / Wheel.N
-        val rows = ArrayList<List<String>>(); val wK = c.run.replay.brain.hedgeK.w
+        val rows = ArrayList<List<String>>(); val wK = c.run.wK
         for ((j, t) in c.memberTitles.withIndex()) {
             val hit = o.count { it.memberTop5Hit[j] }.toDouble() / n; val d = (hit - base) * 100; val se = sqrt(base * (1 - base) / n) * 100
             val ls = Stats.mean(DoubleArray(n) { ln(max(o[it].memberPA[j], 1e-12) * Wheel.N) })
@@ -370,7 +414,7 @@ object LabTabs {
         out.add(S.table("🔵 KOTLIN MECLİSİ", listOf("Model", "Δ top-5", "Log-skor", "Ağırlık", "Sınıf"), rows, "Hedef: gerçek sayının modelin ilk 5 sayısında olması (komşusuz); taban 5/37. Log-skor: ln(37·p) ortalaması.", al = "lrrrc"))
         val py = o.firstOrNull()?.pyTop5Hit
         if (py != null && c.pyIncluded) {
-            val wP = c.run.replay.brain.hedgeP?.w
+            val wP = c.run.wP
             val prow = ArrayList<List<String>>()
             for (j in py.indices) {
                 val hit = o.count { it.pyTop5Hit!![j] }.toDouble() / n; val d = (hit - base) * 100; val se = sqrt(base * (1 - base) / n) * 100
@@ -523,7 +567,7 @@ object LabTabs {
 
     // ───────── Replay
     private fun replay(c: LabCtx): List<Sec> {
-        val rp = c.run.replay
+        val rp = c.run
         val steps = S.text("WALK-FORWARD", "TRAIN → PREDICT → LOCK → REVEAL → EVALUATE → UPDATE.\nHer adımda geçmiş fiziksel olarak kopyalanıp kesilir (PAST | CUT | FUTURE); gelecek veriye erişim mümkün değildir. Rastgele shuffle ile zaman serisi bölme yoktur. Bölme: Train ${c.n - 2 * LabRunner.segmentLen(c.n)} · Validation ${c.valSteps.size} · OOS ${c.oos.size}.", "")
         val gates = S.kv("LEAKAGE KAPILARI", rp.gates.map { listOf(it.name, if (it.ok) "GEÇTİ" else "KALDI", if (it.ok) "ok" else "bad", it.detail) } + listOf(listOf("Sonuç", if (rp.leakFree) "temiz" else Codes.LEAK, if (rp.leakFree) "ok" else "bad", "")))
         val det = c.determinism

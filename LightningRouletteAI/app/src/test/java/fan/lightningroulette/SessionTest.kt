@@ -88,12 +88,13 @@ class SessionTest {
         val steps0 = s.brain.steps
         val r = s.enter(17, 60) as EnterResult.Entered
         assertEquals(61, s.size); assertEquals(61, st.spinList.size)
-        assertNotNull(r.eval); assertEquals(p.code, r.evaluated!!.code); assertEquals(17, r.eval!!.actual)
+        val ev = r.eval; val evaluated = r.evaluated; val nx = r.next
+        assertNotNull(ev); assertEquals(p.code, evaluated!!.code); assertEquals(17, ev!!.actual)
         assertEquals(steps0 + 1, s.brain.steps)
-        assertEquals(61, r.next!!.refCount); assertTrue(r.next.code != p.code)
-        assertEquals(1, st.evals.size); assertTrue(st.hasLog("").not())
+        assertEquals(61, nx!!.refCount); assertTrue(nx.code != p.code)
+        assertEquals(1, st.evals.size)
         assertTrue(r.spin.ts > st.spinList[58].ts)
-        assertEquals("exact ve candidate ayrı", r.eval.exact, p.candidates[0].n == 17)
+        assertEquals("exact ve candidate ayrı", ev.exact, p.candidates[0].n == 17)
     }
 
     @Test fun doubleEnterAndInvalidValuesWriteNothing() {

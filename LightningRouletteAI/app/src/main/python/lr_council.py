@@ -13,6 +13,7 @@ Zaman damgası kullanılmaz (yalnızca sıra), böylece tahmin zamanı ≤ gerç
 Meclis durumu geçmişten TÜRETİLİR: `live_predict(values)` önce eksik gözlemleri sırayla öğrenir (catch-up),
 sonra tahmin eder. Geri alma (son spin silindi) tek seviye snapshot ile ya da yeniden kurulumla çözülür.
 """
+import base64
 import json
 import math
 import pickle
@@ -342,15 +343,15 @@ class GradBoost:
 
     def __init__(self, every=50, rounds=12, lr=0.15, maxn=600, bins=8, lam=5.0, min_leaf=15):
         self.every, self.rounds, self.lr, self.maxn, self.B, self.lam, self.min_leaf = every, rounds, lr, maxn, bins, lam, min_leaf
-        self.X = []
-        self.y = []
+        self.X = np.zeros((0, 0), dtype=np.float32)
+        self.y = np.zeros(0, dtype=np.int16)
         self.since = 0
         self.base = np.zeros(K)
         self.st = None          # (kk, ff, thr, vL, vR)
 
     def _fit(self):
-        X = np.array(self.X)
-        y = np.array(self.y, dtype=int)
+        X = self.X.astype(float)
+        y = self.y.astype(int)
         n, F = X.shape
         B = self.B
         Y = np.zeros((n, K))
@@ -414,8 +415,9 @@ class GradBoost:
         end = h.n - 1
         if end < 5:
             return
-        self.X = (self.X + [ctx_features(h, end).tolist()])[-self.maxn:]
-        self.y = (self.y + [int(h.v[end])])[-self.maxn:]
+        f = ctx_features(h, end).astype(np.float32)[None, :]
+        self.X = (f if self.X.shape[0] == 0 else np.vstack([self.X, f]))[-self.maxn:]
+        self.y = np.append(self.y, np.int16(h.v[end]))[-self.maxn:]
         self.since += 1
         if self.since >= self.every and len(self.y) >= 120:
             self.since = 0
@@ -610,11 +612,12 @@ class MotifDiscovery:
             return np.full(K, 1.0 / K)
         s = SEC[np.asarray(h.v[max(0, n - self.kmax):n], dtype=int)]
         for k in range(min(self.kmax, len(s)), 0, -1):
-            key = tuple(int(x) for x in s[len(s) - k:])
+            key = bytes(int(x) for x in s[len(s) - k:])
             c = self.T[k].get(key)
-            if c is not None and c.sum() >= self.support:
+            if c is not None and sum(c) >= self.support:
                 self.last_len = k
-                p = (c + 0.5) / (c.sum() + 0.5 * NS)
+                ca = np.asarray(c, dtype=float)
+                p = (ca + 0.5) / (ca.sum() + 0.5 * NS)
                 return norm(0.8 * sec_to_num(p) + 0.2 / K)
         self.last_len = 0
         return np.full(K, 1.0 / K)
@@ -627,14 +630,13 @@ class MotifDiscovery:
         nxt = int(sec[-1])
         ctxs = sec[:-1]
         for k in range(1, min(self.kmax, len(ctxs)) + 1):
-            key = tuple(int(x) for x in ctxs[len(ctxs) - k:])
+            key = bytes(int(x) for x in ctxs[len(ctxs) - k:])
             d = self.T[k]
             c = d.get(key)
             if c is None:
-                c = np.zeros(NS)
-            c = c.copy()
-            c[nxt] += 1.0
-            d[key] = c
+                c = [0] * NS
+                d[key] = c
+            c[nxt] += 1
 
 
 def all_members():
@@ -708,7 +710,7 @@ class Council:
         self.pending = d["pending"]
 
     def save(self):
-        return pickle.dumps({"v": 2, "n": self.n, "tail": self.tail, "blob": self._blob(), "snap": self.snap}, protocol=4)
+        return pickle.dumps({"v": 2, "n": self.n, "tail": self.tail, "blob": self._blob()}, protocol=4)
 
     def load(self, data):
         try:
@@ -716,7 +718,7 @@ class Council:
             if d.get("v") != 2:
                 return False
             self._load_blob(d["blob"])
-            self.n, self.tail, self.snap = d["n"], tuple(d["tail"]), d.get("snap")
+            self.n, self.tail, self.snap = d["n"], tuple(d["tail"]), None   # tek seviye geri alma anlık görüntüsü kaydedilmez
             return True
         except Exception:
             return False
@@ -793,6 +795,18 @@ def state_load(data):
     return bool(_C.load(bytes(data)))
 
 
+def state_save_b64():
+    """Chaquopy ile güvenli aktarım için Base64 metin (bayt dizisi dönüşümü belirsizliği yok)."""
+    return base64.b64encode(_C.save()).decode("ascii")
+
+
+def state_load_b64(text):
+    try:
+        return bool(_C.load(base64.b64decode(text)))
+    except Exception:
+        return False
+
+
 def state_n():
     return int(_C.n)
 
@@ -820,6 +834,10 @@ def replay_chunk(record_from, n_steps):
         i += 1
     _R["i"] = i
     return np.stack(out).astype(np.float32).tobytes() if out else b""
+
+
+def replay_chunk_b64(record_from, n_steps):
+    return base64.b64encode(replay_chunk(record_from, n_steps)).decode("ascii")
 
 
 def replay_pos():

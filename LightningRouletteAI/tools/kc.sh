@@ -18,8 +18,10 @@ if [ "$1" = "gensample" ]; then
   kotlinc "$SRC"/*.kt "$ROOT"/tools/GenSample.kt -d "$OUT/gen.jar" -nowarn 2>&1 | grep -v "^warning" || true
   (cd "$ROOT" && java -Dfile.encoding=UTF-8 -cp "$OUT/gen.jar:$KC/package/lib/kotlin-stdlib.jar" GenSampleKt)
 elif [ "$1" = "test" ]; then
-  kotlinc "$SRC"/*.kt "$ROOT"/tools/junit-stubs/org/junit/*.kt "$ROOT"/app/src/test/java/fan/lightningroulette/*.kt "$ROOT"/tools/LocalRunner.kt -d "$OUT/test.jar" -Xskip-prerelease-check -nowarn 2>&1 | grep -v "^warning" || true
-  java -Dfile.encoding=UTF-8 -cp "$OUT/test.jar:$KC/package/lib/kotlin-stdlib.jar" LocalRunnerKt fan.lightningroulette.CoreTest fan.lightningroulette.ResumeTest fan.lightningroulette.ImportTest fan.lightningroulette.LabTest fan.lightningroulette.SessionTest
+  # Gradle'daki gibi AYRI modül: testler ana kodu jar olarak görür (smart-cast kısıtı geçerli; internal için friend-path).
+  kotlinc "$SRC"/*.kt -d "$OUT/core.jar" -nowarn 2>&1 | grep -v "^warning" || true
+  kotlinc -cp "$OUT/core.jar" -Xfriend-paths="$OUT/core.jar" "$ROOT"/tools/junit-stubs/org/junit/*.kt "$ROOT"/app/src/test/java/fan/lightningroulette/*.kt "$ROOT"/tools/LocalRunner.kt -d "$OUT/test.jar" -nowarn 2>&1 | grep -v "^warning" || true
+  java -Dfile.encoding=UTF-8 -cp "$OUT/test.jar:$OUT/core.jar:$KC/package/lib/kotlin-stdlib.jar" LocalRunnerKt fan.lightningroulette.CoreTest fan.lightningroulette.ResumeTest fan.lightningroulette.ImportTest fan.lightningroulette.LabTest fan.lightningroulette.SessionTest
 else
   kotlinc "$SRC"/*.kt -d "$OUT/core.jar" -nowarn 2>&1 | grep -v "^warning" || true
   echo "çekirdek derlendi: $OUT/core.jar"

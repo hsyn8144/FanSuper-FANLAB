@@ -98,6 +98,19 @@ class LabTest {
         assertEquals(r.cls, back!!.cls); assertEquals(r.deltaPp, back.deltaPp, 1e-9); assertEquals(r.hash, back.hash); assertEquals(r.cfg.paramHash(), back.cfg.paramHash())
     }
 
+    @Test fun runSnapshotSurvivesPackedCacheRoundTrip() {
+        val v = rnd(1300, 14); val t = tsOf(v.size)
+        val snap = RunSnap.of(LabRunner.run(v, t, quick))
+        val back = RunSnap.fromJson(Pack.unpack(Pack.pack(snap.toJson())))
+        assertNotNull(back)
+        assertEquals(snap.steps.size, back!!.steps.size); assertEquals(snap.hash, back.hash); assertEquals(snap.result.cls, back.result.cls)
+        assertTrue("paketleme küçültmeli", Pack.pack(snap.toJson()).length < snap.toJson().length)
+        val a = LabCtx(v, t, Sectors.DEFAULT, snap, quick, false, emptyList(), null, null, emptyList(), 0, "T")
+        val b = LabCtx(v, t, Sectors.DEFAULT, back, quick, false, emptyList(), null, null, emptyList(), 0, "T")
+        for (id in listOf("overview", "models", "calibration", "diversity", "regime", "replay"))
+            assertEquals("$id önbellekten aynı", S.encode(LabTabs.build(a, id)), S.encode(LabTabs.build(b, id)))
+    }
+
     @Test fun classificationRules() {
         assertEquals("S", LabRunner.classify(100, 5.0, 3.0, 7.0, 0.001, 5.0, true, 80))
         assertEquals("L", LabRunner.classify(2000, 5.0, 3.0, 7.0, 0.001, 5.0, false, 80))
@@ -111,7 +124,7 @@ class LabTest {
     @Test fun allSixteenTabsBuildAndSerialize() {
         val v = rnd(1300, 3); val t = tsOf(v.size)
         val run = LabRunner.run(v, t, quick)
-        val ctx = LabCtx(v, t, Sectors.DEFAULT, run, quick, false, emptyList(), null, null, emptyList(), 0, "Test")
+        val ctx = LabCtx(v, t, Sectors.DEFAULT, RunSnap.of(run), quick, false, emptyList(), null, null, emptyList(), 0, "Test")
         assertEquals(16, LabTabs.TABS.size)
         for ((id, _) in LabTabs.TABS) {
             val secs = LabTabs.build(ctx, id)
@@ -120,7 +133,7 @@ class LabTest {
         }
         for ((id, _) in LabTabs.ROB_TABS) assertTrue(LabTabs.build(ctx, "robustness", id).isNotEmpty())
         assertTrue(ctx.robust.score in 0..100)
-        val small = LabTabs.build(LabCtx(v.copyOf(40), t.copyOf(40), Sectors.DEFAULT, LabRunner.run(v.copyOf(40), t.copyOf(40), quick), quick, false, emptyList(), null, null, emptyList(), 0, "x"), "overview")
+        val small = LabTabs.build(LabCtx(v.copyOf(40), t.copyOf(40), Sectors.DEFAULT, RunSnap.of(LabRunner.run(v.copyOf(40), t.copyOf(40), quick)), quick, false, emptyList(), null, null, emptyList(), 0, "x"), "overview")
         assertEquals("text", small[0].type)
     }
 
@@ -139,9 +152,10 @@ class LabTest {
         val cfg = ExpConfig("suite", window = 80, features = BrainConfig.ALL_FEATURES - "ML")
         val su = LabSuites.runAll(v, t, cfg, Sectors.DEFAULT, true, null, null)
         assertNotNull(su.full); assertTrue(su.ablation.size >= 8); assertTrue(su.counterfactual.size >= 6)
-        assertNotNull(su.sens); assertTrue(su.stress!!.size == 8 && su.stress.all { it.ok })
+        val stress = su.stress
+        assertNotNull(su.sens); assertNotNull(stress); assertTrue(stress!!.size == 8 && stress.all { it.ok })
         val back = Suites.fromJson(su.toJson()); assertNotNull(back); assertEquals(su.ablation.size, back!!.ablation.size)
-        val ctx = LabCtx(v, t, Sectors.DEFAULT, LabRunner.run(v, t, cfg), cfg, false, emptyList(), null, su, emptyList(), 0, "T")
+        val ctx = LabCtx(v, t, Sectors.DEFAULT, RunSnap.of(LabRunner.run(v, t, cfg)), cfg, false, emptyList(), null, su, emptyList(), 0, "T")
         for (id in listOf("counterfactual", "ablation")) assertTrue(LabTabs.build(ctx, id).size >= 2)
         for ((id, _) in LabTabs.ROB_TABS) assertTrue(LabTabs.build(ctx, "robustness", id).isNotEmpty())
     }
