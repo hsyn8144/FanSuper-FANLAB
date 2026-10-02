@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -66,6 +68,11 @@ fun LabScreen(ui: EngineUi) {
 @Composable
 private fun JobStrip() {
     val lab by LabManager.ui.collectAsState()
+    var confirm by remember { mutableStateOf(false) }
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false },
+        confirmButton = { TextButton(onClick = { confirm = false; LabManager.cancelCurrent() }) { Text("Deneyi iptal et") } },
+        dismissButton = { TextButton(onClick = { confirm = false }) { Text("Devam et") } },
+        title = { Text("Deney iptal edilsin mi?") }, text = { Text("Kısmi sonuç CANCELLED olarak saklanır; silinmez.") })
     if (lab.running) {
         LrCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -73,7 +80,7 @@ private fun JobStrip() {
                     T("▶ ${lab.jobCode} · %${lab.progress}", C.blue, 12, true, true)
                     T(lab.jobTitle + if (lab.detail.isNotEmpty()) " · " + lab.detail else "", C.dim, 10)
                 }
-                LrButton("İptal", { LabManager.cancelCurrent() }, "danger")
+                LrButton("İptal", { confirm = true }, "danger")
             }
             Box(Modifier.fillMaxWidth().padding(top = 6.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(C.card2)) { Box(Modifier.fillMaxWidth(lab.progress / 100f).height(6.dp).background(C.blue)) }
         }

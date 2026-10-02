@@ -216,7 +216,7 @@ fun MainScaffold(ui: EngineUi) {
             }
             Column(Modifier.align(Alignment.BottomCenter).padding(10.dp)) {
                 if (ui.busy != null) Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(C.blueDeep).padding(10.dp)) { T("⏳ " + ui.busy, Color.White, 12, true, true) }
-                if (ui.toast != null) Box(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp)).background(C.card2).border(BorderStroke(1.dp, C.line), RoundedCornerShape(10.dp)).clickable { Engine.clearToast() }.padding(10.dp)) { T(ui.toast, C.text, 12) }
+                if (ui.toast != null) Box(Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(10.dp)).background(C.card2).border(BorderStroke(1.dp, C.line), RoundedCornerShape(10.dp)).padding(10.dp)) { T(ui.toast, C.text, 12) }
             }
         }
         Row(Modifier.fillMaxWidth().background(C.card).padding(vertical = 4.dp)) {

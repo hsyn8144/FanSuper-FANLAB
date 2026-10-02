@@ -11,6 +11,6 @@ adb logcat -c
 ./gradlew --no-daemon connectedDebugAndroidTest 2>&1 | tee e2e.log | tail -40
 RC=${PIPESTATUS[0]}
 adb logcat -d -v time > logcat_full.txt
-grep -E "FATAL EXCEPTION|AndroidRuntime|ANR in|LR-E-|chaquopy|lr_council|Traceback|Exception" logcat_full.txt | grep -v "StrictMode\|W/System\|Choreographer" | head -300 > logcat_errors.txt
+grep -E "fan\.lightningroulette|lr-engine|lr-lab|FATAL EXCEPTION|ANR in|LR-E-|Traceback|lr_council" logcat_full.txt | grep -E " [EWF]/|FATAL|Traceback|LR-E-|ANR" | grep -v "avc: granted\|StrictMode\|Choreographer" | head -200 > logcat_errors.txt
 echo $RC > e2e_rc.txt
 exit 0

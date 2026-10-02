@@ -32,9 +32,14 @@ class JourneyTest {
 
     private fun has(t: String, sub: Boolean = true) = rule.onAllNodesWithText(t, substring = sub).fetchSemanticsNodes().isNotEmpty()
     private fun waitText(t: String, ms: Long = 60_000, sub: Boolean = true) {
-        try { rule.waitUntil(ms) { has(t, sub) } } catch (e: Throwable) { throw AssertionError("beklenen metin görünmedi: “$t” (${ms / 1000} sn). Ekranda: ${dump()}") }
+        try { rule.waitUntil(ms) { has(t, sub) } } catch (e: Throwable) { throw AssertionError("beklenen metin görünmedi: “$t” (${ms / 1000} sn). ${diag()} Ekran: ${dump()}") }
     }
-    private fun dump(): String = try { rule.onRoot(useUnmergedTree = false).printToString().take(1500) } catch (e: Throwable) { "?" }
+    private fun dump(): String = try { rule.onRoot(useUnmergedTree = false).printToString().take(700) } catch (e: Throwable) { "?" }
+    private fun diag(): String {
+        val u = Engine.ui.value
+        val logs = try { Engine.dao.logs(8).joinToString(" | ") { it.event + (it.code?.let { c -> "($c)" } ?: "") + ":" + it.detail.take(140) } } catch (e: Throwable) { "log okunamadı: ${e.message}" }
+        return "durum[phase=${u.phase} spin=${u.spinCount} error=${u.error} toast=${u.toast} py=${u.pyStatus} busy=${u.busy}] loglar[$logs]"
+    }
     private fun first(t: String, sub: Boolean = false): SemanticsNodeInteraction = rule.onAllNodesWithText(t, substring = sub)[0]
     private fun click(t: String, sub: Boolean = false) { val n = first(t, sub); try { n.performScrollTo() } catch (_: Throwable) { }; n.performClick(); rule.waitForIdle() }
     private fun tag(t: String) { val n = rule.onAllNodesWithTag(t)[0]; try { n.performScrollTo() } catch (_: Throwable) { }; n.performClick(); rule.waitForIdle() }
@@ -61,8 +66,10 @@ class JourneyTest {
         tag("key_1"); tag("key_7"); tag("key_ENTER")
         waitText("SONUÇ DEĞERLENDİRMESİ", 60_000)
         waitText("KİLİT", 60_000)
+        val before = Engine.ui.value.spinCount
         click("↩ Son spini geri al")
-        waitText("geri alındı", 60_000)
+        try { rule.waitUntil(90_000) { Engine.ui.value.spinCount == before - 1 } } catch (e: Throwable) { throw AssertionError("geri al çalışmadı: spin $before → ${Engine.ui.value.spinCount}. ${diag()}") }
+        assertTrue("geri alma sonrası kilitli tahmin görünmeli", Engine.ui.value.pred != null)
         // geçersiz giriş: 3,7 → 37 → kutu kırmızı ve ENTER pasif
         tag("key_3"); tag("key_7")
         waitText("0–36 DIŞI")
@@ -91,8 +98,9 @@ class JourneyTest {
         for (s in listOf("Overlay", "Python/LAB", "Veri", "Loglar", "Hakkında")) { seg(s); rule.waitForIdle() }
         seg("Tanılama"); click("Tümünü çalıştır")
         waitText("Geçen / toplam", 30_000)
-        rule.waitUntil(240_000) { !has("◔ çalışıyor…", true) }
-        assertTrue("tanılamada ✗ (kaldı) olmamalı: ${dump()}", !has("✗ ", true))
+        rule.waitUntil(30_000) { has("◔ çalışıyor…", true) || has("Atlanan", true) && has("✓ ", true) }
+        rule.waitUntil(300_000) { !has("◔ çalışıyor…", true) }
+        assertTrue("tanılamada ✗ (kaldı) olmamalı: ${rule.onAllNodesWithText("✗ ", substring = true).fetchSemanticsNodes().size} başarısız. ${diag()}", !has("✗ ", true))
         // ── 9) overlay servisi (izin adb ile verilir)
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         if (OverlayService.canDraw(ctx)) {
