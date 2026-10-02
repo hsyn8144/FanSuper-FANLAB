@@ -77,12 +77,12 @@ private fun TilesSec(s: Sec) {
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         for (pair in items.chunked(2)) {
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                for ((i, it) in pair.withIndex()) {
-                    val tone = it.getOrElse(3) { "" }
+                for ((i, item) in pair.withIndex()) {
+                    val tone = item.getOrElse(3) { "" }
                     Column(Modifier.weight(1f).padding(end = if (i == 0) 6.dp else 0.dp).clip(RoundedCornerShape(12.dp)).background(C.card).padding(10.dp)) {
-                        T(it.getOrElse(0) { "" }, C.dim, 11)
-                        T(it.getOrElse(1) { "" }, if (tone.isEmpty()) C.text else C.tone(tone), 18, true, true)
-                        T(it.getOrElse(2) { "" }, C.dim2, 10)
+                        T(item.getOrElse(0) { "" }, C.dim, 11)
+                        T(item.getOrElse(1) { "" }, if (tone.isEmpty()) C.text else C.tone(tone), 18, true, true)
+                        T(item.getOrElse(2) { "" }, C.dim2, 10)
                     }
                 }
                 if (pair.size == 1) Box(Modifier.weight(1f))

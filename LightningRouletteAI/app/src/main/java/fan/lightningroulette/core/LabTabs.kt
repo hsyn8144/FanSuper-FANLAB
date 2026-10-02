@@ -741,3 +741,9 @@ object LabTabs {
     }
 }
 
+
+/** Arayüz katmanı için genel (public) köprü: iç analizlere erişim. */
+class AnSectorRow(val name: String, val delta: Double, val unit: String, val p: Double, val cls: String)
+object AnBridge {
+    fun sectorTests(v: IntArray, sec: Sectors): List<AnSectorRow> = An.sectorTests(v, sec, 200).map { AnSectorRow(it.name, it.delta, it.unit, it.p, it.cls) }
+}

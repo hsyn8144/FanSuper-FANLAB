@@ -17,6 +17,17 @@ interface LrDao {
     @Insert fun insertDataset(d: DatasetE): Long
     @Update fun updateDataset(d: DatasetE)
     @Query("UPDATE datasets SET active = 0") fun deactivateAll()
+    @Query("DELETE FROM datasets WHERE id = :id") fun deleteDataset(id: Long)
+    @Query("DELETE FROM dataset_versions WHERE datasetId = :id") fun deleteVersionsOf(id: Long)
+    @Query("DELETE FROM import_batches") fun deleteAllBatches()
+    @Query("DELETE FROM logs") fun deleteAllLogs()
+    @Query("DELETE FROM state_blobs") fun deleteAllStates()
+    @Query("DELETE FROM model_versions") fun deleteAllModelVersions()
+    @Query("DELETE FROM evaluations") fun deleteAllEvaluations()
+    @Query("DELETE FROM predictions") fun deleteAllPredictions()
+    @Query("DELETE FROM spins") fun deleteAllSpins()
+    @Query("DELETE FROM datasets") fun deleteAllDatasets()
+    @Query("DELETE FROM dataset_versions") fun deleteAllVersions()
     @Insert fun insertVersion(v: DatasetVersionE): Long
     @Query("SELECT * FROM dataset_versions WHERE datasetId = :d ORDER BY version DESC") fun versions(d: Long): List<DatasetVersionE>
     @Insert fun insertBatch(b: ImportBatchE): Long
@@ -31,6 +42,9 @@ interface LrDao {
     @Query("SELECT COUNT(*) FROM spins WHERE datasetId = :d") fun spinCountFlow(d: Long): Flow<Int>
     @Query("SELECT * FROM spins WHERE datasetId = :d ORDER BY id DESC LIMIT :n") fun lastSpinsFlow(d: Long, n: Int): Flow<List<SpinE>>
     @Query("SELECT * FROM spins WHERE datasetId = :d ORDER BY id DESC LIMIT 1") fun lastSpin(d: Long): SpinE?
+    @Query("UPDATE spins SET value = :v WHERE id = :id") fun updateSpinValue(id: Long, v: Int)
+    @Query("SELECT COUNT(*) FROM spins WHERE datasetId = :d AND id <= :id") fun spinIndex(d: Long, id: Long): Int
+    @Query("SELECT COUNT(*) FROM spins WHERE datasetId = :d AND source = :src") fun spinCountBySource(d: Long, src: String): Int
     @Insert fun insertSpin(s: SpinE): Long
     @Insert fun insertSpins(list: List<SpinE>)
     @Query("DELETE FROM spins WHERE id = :id") fun deleteSpin(id: Long)
@@ -41,6 +55,7 @@ interface LrDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) fun insertPrediction(p: PredictionE): Long
     @Query("DELETE FROM predictions WHERE datasetId = :d AND refCount > :r") fun deletePredictionsAfter(d: Long, r: Int)
     @Query("DELETE FROM predictions WHERE datasetId = :d") fun deletePredictionsOf(d: Long)
+    @Query("DELETE FROM evaluations WHERE predictionId IN (SELECT id FROM predictions WHERE datasetId = :d AND refCount > :r)") fun deleteEvaluationsAfter(d: Long, r: Int)
     @Query("SELECT COUNT(*) FROM predictions WHERE datasetId = :d") fun predictionCount(d: Long): Int
     @Insert(onConflict = OnConflictStrategy.REPLACE) fun insertEvaluation(e: EvaluationE): Long
     @Query("DELETE FROM evaluations WHERE spinId = :spinId") fun deleteEvaluationFor(spinId: Long)

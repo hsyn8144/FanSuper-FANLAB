@@ -66,6 +66,8 @@ class Settings(ctx: Context) {
 
     // ── veri
     var exportFormat: String get() = getS("export_fmt", "csv"); set(v) = putS("export_fmt", v)
+    var autoBackup: Boolean get() = getB("auto_backup", true); set(v) = putB("auto_backup", v)
+    var backupKeep: Int get() = getI("backup_keep", 7).coerceIn(1, 30); set(v) = putI("backup_keep", v.coerceIn(1, 30))
     var championVersion: String get() = getS("champion", "v1.0.0"); set(v) = putS("champion", v)
 
     fun sectors(): Sectors = Sectors.fromBounds(sectorBounds.split(",").mapNotNull { it.trim().toIntOrNull() }) ?: Sectors.DEFAULT

@@ -74,7 +74,7 @@ object LabManager {
         val (v, t, hash) = spinsOf() ?: return null
         val cfg = baseConfig()
         val k = key("lab.base", hash, cfg)
-        ctxCache?.let { if (ctxKey == k + "|" + Engine.dao.experimentCount() + "|" + (Engine.dao.getState("${Engine.dataset?.id}:suites.$hash") != null)) return it }
+        ctxCache?.let { if (ctxKey == k + "|" + Engine.dao.experimentCount()) return it }
         val snap = getBlob(k)?.let { RunSnap.fromJson(it) } ?: return null
         val suites = getBlob(key("lab.suites", hash, cfg))?.let { Suites.fromJson(it) }
         val det = getBlob(key("lab.det", hash, cfg))?.split(",")?.let { if (it.size == 2) (it[0].toLongOrNull() ?: 0L) to (it[1].toLongOrNull() ?: 0L) else null }
@@ -83,7 +83,7 @@ object LabManager {
         val errs = Engine.dao.batches(1000).sumOf { it.invalid }
         val ctx = LabCtx(v, t, Engine.settings.sectors(), snap, cfg, cfg.kotlinWeight < 0.999, PY_IDS.map { PY_TITLES[it] ?: it }, det, suites, ex, errs,
             (d?.name ?: "dataset") + " v" + (d?.version ?: 1), Engine.settings.championVersion)
-        ctxCache = ctx; ctxKey = k + "|" + Engine.dao.experimentCount() + "|" + (Engine.dao.getState("${Engine.dataset?.id}:suites.$hash") != null)
+        ctxCache = ctx; ctxKey = k + "|" + Engine.dao.experimentCount()
         _ui.update { it.copy(baseReady = true) }
         return ctx
     }
@@ -158,7 +158,12 @@ object LabManager {
     }
 
     // ───────── kuyruk
-    fun enqueue(kind: String, cfg: ExpConfig, hypothesis: String, priority: Int = 0): ExperimentE? {
+    /** Kuyruğa ekler (veritabanı yazması LAB iş parçacığında; arayüz iş parçacığından güvenle çağrılır). */
+    fun enqueue(kind: String, cfg: ExpConfig, hypothesis: String, priority: Int = 0) {
+        scope.launch { enqueueNow(kind, cfg, hypothesis, priority) }
+    }
+
+    private fun enqueueNow(kind: String, cfg: ExpConfig, hypothesis: String, priority: Int): ExperimentE? {
         val tri = spinsOf() ?: return null
         val d = Engine.dataset ?: return null
         val now = System.currentTimeMillis()
@@ -211,8 +216,18 @@ object LabManager {
         Engine.store?.log(if (status == "DONE") "INFO" else "WARN", null, "EXPERIMENT_" + status, e.code + " · " + reason)
     }
 
+    /** Pil tasarrufu açıksa (ve ayar isteniyorsa) deney duraklatılır; kapanınca kaldığı yerden sürer. */
+    private fun waitIfSaver() {
+        val pm = Engine.context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager ?: return
+        while (Engine.settings.labPauseOnSaver && pm.isPowerSaveMode && !cancelFlag.get()) {
+            _ui.update { it.copy(detail = "pil tasarrufu: duraklatıldı") }
+            try { Thread.sleep(3000) } catch (_: InterruptedException) { return }
+        }
+    }
+
     private fun runJob(e0: ExperimentE) {
         cancelFlag.set(false)
+        waitIfSaver()
         var e = e0.copy(status = "RUNNING", startedAt = System.currentTimeMillis())
         Engine.dao.updateExperiment(e)
         _ui.update { it.copy(running = true, jobCode = e.code, jobTitle = e.hypothesis, progress = 0, detail = "", queued = Engine.dao.experiments().count { x -> x.status == "QUEUED" }) }
@@ -265,5 +280,11 @@ object LabManager {
         }
     }
 
-    fun delete(e: ExperimentE) { /* silinmez: yalnızca CANCELLED işaretlenir */ if (e.status == "QUEUED") Engine.dao.updateExperiment(e.copy(status = "CANCELLED", reason = "kuyruktan çıkarıldı", finishedAt = System.currentTimeMillis())); refreshQueued() }
+    /** Silinmez: kuyruktaki deney yalnızca CANCELLED olarak işaretlenir. */
+    fun delete(e: ExperimentE) {
+        scope.launch {
+            if (e.status == "QUEUED") Engine.dao.updateExperiment(e.copy(status = "CANCELLED", reason = "kuyruktan çıkarıldı", finishedAt = System.currentTimeMillis()))
+            refreshQueued()
+        }
+    }
 }

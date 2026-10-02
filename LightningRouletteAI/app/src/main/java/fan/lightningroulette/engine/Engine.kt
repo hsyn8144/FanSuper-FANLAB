@@ -64,6 +64,9 @@ object Engine {
 
     val context: Application get() = app
 
+    /** Açılış hata ekranından "Yeniden dene". */
+    fun retryBoot() { scope.launch { boot() } }
+
     // ───────────────── açılış
     private fun setStep(name: String, status: String, detail: String = "") {
         _ui.update { u -> u.copy(steps = u.steps.map { if (it.name == name) BootStep(name, status, detail) else it }) }
@@ -164,6 +167,7 @@ object Engine {
     }
 
     private fun toast(text: String): (EngineUi) -> EngineUi = { it.copy(toast = text, toastId = ++toastSeq) }
+    fun notify(text: String) { publish(toast(text)) }
     fun clearToast() { _ui.update { it.copy(toast = null) } }
     fun clearEval() { _ui.update { it.copy(evaluated = null, eval = null, evalActual = -1) } }
     fun clearError() { _ui.update { it.copy(error = null) } }
@@ -257,4 +261,16 @@ object Engine {
     }
 
     fun finishSetup() { settings.setupDone = true }
+
+    /** DataOps: aktif dataset nesnesini güncelle. */
+    fun setDataset(d: DatasetE?) { dataset = d }
+
+    /** Aktif dataset satırını yeniden oku (sürüm/hash değişti) ve oturumu yeni dataset nesnesiyle sürdür. */
+    fun openSessionDataset() { dataset = dataset?.let { dao.dataset(it.id) } }
+
+    /** Veri tamamen sıfırlanınca kurulum akışına dön. */
+    fun restartBoot() {
+        session = null; store = null
+        _ui.update { EngineUi(phase = "setup", steps = it.steps, champion = settings.championVersion) }
+    }
 }

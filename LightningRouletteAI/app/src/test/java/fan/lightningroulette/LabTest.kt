@@ -120,6 +120,19 @@ class LabTest {
         assertTrue(LabReport.failReason(r).isNotEmpty() || r.cls == "A" || r.cls == "B")
     }
 
+    @Test fun refereeAnalysisUsesValidationOnly() {
+        val v = rnd(1400, 16); val t = tsOf(v.size)
+        val run = LabRunner.run(v, t, quick)
+        val r = Referee.analyse(run.steps, run.valStart, run.oosStart)
+        assertTrue(r.n > 100); assertEquals(false, r.hasPython)
+        assertTrue("Kotlin log loss tabana yakın: ${r.kotlinOnly}", Math.abs(r.kotlinOnly - r.baseline) < 0.25)
+        assertTrue("rastgele veride %90 küme ≈ 33/37: ${r.conformalSize}", r.conformalSize in 28..37)
+        val ctx = LabCtx(v, t, Sectors.DEFAULT, RunSnap.of(run), quick, false, emptyList(), null, null, emptyList(), 0, "T")
+        assertTrue(Referee.secs(ctx).isNotEmpty())
+        val back = StepIO.fromList(StepIO.toList(run.steps[0]))
+        assertEquals(run.steps[0].rank, back.rank); assertEquals(run.steps[0].kPA, back.kPA, 1e-12)
+    }
+
     @Test fun classificationRules() {
         assertEquals("S", LabRunner.classify(100, 5.0, 3.0, 7.0, 0.001, 5.0, true, 80))
         assertEquals("L", LabRunner.classify(2000, 5.0, 3.0, 7.0, 0.001, 5.0, false, 80))
