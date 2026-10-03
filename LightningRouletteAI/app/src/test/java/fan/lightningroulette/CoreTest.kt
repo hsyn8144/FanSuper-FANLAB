@@ -203,7 +203,7 @@ class ResumeTest {
         val old = TableCall.fromMap(mapOf("cat" to 3, "cls" to 1, "p" to 0.4, "base" to 0.32, "probs" to listOf(0.3, 0.4, 0.27, 0.03)))
         assertEquals(listOf(1), old.picks)
         // motor: ikili kategoriler her zaman tek, üç sınıflılar 1..2 seçim
-        val h = randomSpins(400, 7L)
+        val rnd = java.util.Random(7L); val h = IntArray(400) { rnd.nextInt(37) }
         val calls = TableEngine(Params(300, 0.02, Sectors.DEFAULT)).predict(h)
         for (c in calls) {
             if (TableCats.classes(c.cat) == 2) assertEquals(1, c.picks.size) else assertTrue(c.picks.size in 1..2)
