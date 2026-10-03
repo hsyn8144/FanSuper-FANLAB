@@ -109,7 +109,7 @@ class Brain(val cfg: BrainConfig) {
                 m[SCORE_PY] = s
             }
             var aligned = 0
-            for (call in calls) if (TableCats.classOf(call.cat, c) == call.cls) aligned++
+            for (call in calls) if (call.covers(TableCats.classOf(call.cat, c))) aligned++
             m[SCORE_TABLE] = aligned / 5.0
             m
         }
@@ -121,7 +121,7 @@ class Brain(val cfg: BrainConfig) {
         val out = DoubleArray(Wheel.N)
         for (n in 0 until Wheel.N) {
             var aligned = 0
-            for (c in calls) if (TableCats.classOf(c.cat, n) == c.cls) aligned++
+            for (c in calls) if (c.covers(TableCats.classOf(c.cat, n))) aligned++
             out[n] = p[n] * exp(0.08 * (aligned - 2.5))
         }
         return norm(out)
@@ -209,7 +209,7 @@ object Evaluator {
         val rank = cs.indexOfFirst { it.n == actual } + 1
         val union = HashSet<Int>(); for (c in cs) for (x in c.span) union.add(x)
         val top = cs.first()
-        val hits = BooleanArray(5) { cat -> TableCats.classOf(cat, actual) == pred.table[cat].cls }
+        val hits = BooleanArray(5) { cat -> pred.table[cat].covers(TableCats.classOf(cat, actual)) }
         val pa = pred.pFinal[actual]
         return Eval(
             actual, top.n == actual, rank > 0, rank, actual in union,

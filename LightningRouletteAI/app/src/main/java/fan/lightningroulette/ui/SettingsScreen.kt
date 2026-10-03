@@ -162,7 +162,7 @@ private fun OverlaySettings(ver: Int) {
     }
     LrCard(title = "GÖRÜNÜM") {
         Chips("ovMode", listOf("Dikey" to "vertical", "Yatay" to "horizontal", "Kompakt" to "compact", "Metin" to "text", "Simge" to "icon"), s.ovMode) { s.ovMode = it }
-        SliderRow("Boyut", s.ovScale, 80, 140, "%") { s.ovScale = it }
+        SliderRow("Boyut (küçültmek için 60%’a kadar)", s.ovScale, 60, 140, "%") { s.ovScale = it }
         SliderRow("Saydamlık", s.ovAlpha, 60, 100, "%") { s.ovAlpha = it }
         T("NEXT sayısı", C.dim, 11, true); Chips("ovNext", listOf("3" to "3", "4" to "4", "5" to "5"), s.ovNext.toString()) { s.ovNext = it.toInt() }
         T("SON 8 ve TABLE satır sayısı sabittir (8 ve 5).", C.dim2, 10)

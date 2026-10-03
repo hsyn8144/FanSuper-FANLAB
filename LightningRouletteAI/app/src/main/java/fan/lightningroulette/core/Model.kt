@@ -23,15 +23,20 @@ data class Candidate(
 }
 
 /** Bir masa kategorisinde modelin seçtiği taraf. */
-data class TableCall(val cat: Int, val cls: Int, val p: Double, val base: Double, val probs: DoubleArray) {
-    val label: String get() = TableCats.LABELS[cat][cls]
-    val pick: String get() = TableCats.PICKS[cat][cls]
+data class TableCall(val cat: Int, val cls: Int, val p: Double, val base: Double, val probs: DoubleArray, val cls2: Int = -1) {
+    /** Modelin seçtiği sınıflar: birincil + (yalnızca DOZEN/COLUMN'da, yakınsa) ikinci. En az 1, en çok 2. */
+    val picks: List<Int> get() = if (TableCats.classes(cat) == 3 && cls2 in 0..2 && cls2 != cls) listOf(cls, cls2) else listOf(cls)
+    fun covers(classIndex: Int): Boolean = classIndex >= 0 && classIndex in picks
+    /** Seçilen tüm sınıfların toplam olasılığı (tek seçimde p ile aynı). */
+    val pCover: Double get() = picks.sumOf { probs.getOrNull(it) ?: 0.0 }
+    val label: String get() = picks.joinToString(" + ") { TableCats.LABELS[cat][it] }
+    val pick: String get() = picks.joinToString(" + ") { TableCats.PICKS[cat][it] }
     /** Tüm sınıflar + son indekste (classes(cat)) rulet sıfırı. */
     fun probability(classIndex: Int): Double = probs.getOrNull(classIndex) ?: 0.0
     val zeroProbability: Double get() = probability(TableCats.classes(cat))
-    fun toMap(): Map<String, Any?> = mapOf("cat" to cat, "cls" to cls, "p" to p, "base" to base, "probs" to probs)
+    fun toMap(): Map<String, Any?> = mapOf("cat" to cat, "cls" to cls, "p" to p, "base" to base, "probs" to probs, "cls2" to cls2)
     companion object {
-        fun fromMap(m: Map<String, Any?>) = TableCall(m["cat"].jint(), m["cls"].jint(), m["p"].jnum(), m["base"].jnum(), m["probs"].jdoubles())
+        fun fromMap(m: Map<String, Any?>) = TableCall(m["cat"].jint(), m["cls"].jint(), m["p"].jnum(), m["base"].jnum(), m["probs"].jdoubles(), m["cls2"]?.jint() ?: -1)
     }
 }
 

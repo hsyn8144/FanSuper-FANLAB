@@ -97,7 +97,7 @@ private fun RowScope.TCell(text: String, bg: Color, on: Boolean) {
 private fun TableLayoutTab(ui: EngineUi) {
     val p = ui.pred
     val picks = p?.table ?: emptyList()
-    fun picked(cat: Int, cls: Int) = picks.any { it.cat == cat && it.cls == cls }
+    fun picked(cat: Int, cls: Int) = picks.any { it.cat == cat && it.covers(cls) }
     val s = Engine.settings; val v by s.version.collectAsState()
     LrCard(title = "MASA · bahis düzeni (altın çerçeve = modelin seçimi)") {
         Row(Modifier.fillMaxWidth()) { TCell("0", C.green, false) }
@@ -115,7 +115,7 @@ private fun TableLayoutTab(ui: EngineUi) {
     val top = p?.candidates?.firstOrNull()
     if (top != null) {
         var agree = 0
-        for (c in picks) if (TableCats.classOf(c.cat, top.n) == c.cls) agree++
+        for (c in picks) if (c.covers(TableCats.classOf(c.cat, top.n))) agree++
         LrCard(title = "WHEEL ↔ TABLE") {
             KV("Rank-1 aday ${top.n} ile Table seçimleri uyumu", "$agree / ${picks.size}", if (agree >= 4) "warn" else "")
             T("Table yalnızca Wheel’i tekrar ediyorsa bağımsız teyit sayılmaz; hata korelasyonu LAB › Side/Table’da izlenir.", C.dim2, 10)

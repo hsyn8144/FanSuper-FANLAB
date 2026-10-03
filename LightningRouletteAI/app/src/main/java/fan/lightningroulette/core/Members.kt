@@ -266,6 +266,7 @@ class Hedge(val m: Int, private val eta: Double = 0.25, private val alpha: Doubl
 
 /** Table motoru: sayı tahmininden bağımsız, kendi özellikleriyle (frekans-decay, son-50, Markov-1) öğrenir. */
 class TableEngine(private val pr: Params) {
+    companion object { /** İkinci seçimin eklenmesi için en büyük olasılık farkı (mutlak). */ const val SECOND_MARGIN = 0.03 }
     val hedges = Array(5) { Hedge(3, 0.3, 0.02) }
     var shrink = 0.6
     private var cacheLen = -1
@@ -308,7 +309,13 @@ class TableEngine(private val pr: Params) {
             val cal = DoubleArray(k + 1) { base[it] + shrink * (mix[it] - base[it]) }
             norm(cal)
             var best = 0; for (c in 1 until k) if (cal[c] > cal[best]) best = c
-            TableCall(cat, best, cal[best], TableCats.baseline(cat), cal)
+            // DOZEN/COLUMN (3 sınıf): en az 1, en çok 2 seçim. İkinci sınıf yalnızca birinciye yeterince yakınsa eklenir.
+            var second = -1
+            if (k == 3) {
+                for (c in 0 until k) if (c != best && (second < 0 || cal[c] > cal[second])) second = c
+                if (second >= 0 && cal[best] - cal[second] > SECOND_MARGIN) second = -1
+            }
+            TableCall(cat, best, cal[best], TableCats.baseline(cat), cal, second)
         }
     }
 

@@ -47,7 +47,7 @@ class Settings(ctx: Context) {
     var ovEnabled: Boolean get() = getB("ov_on", false); set(v) = putB("ov_on", v)
     /** vertical | horizontal | compact | text | icon */
     var ovMode: String get() = getS("ov_mode", "vertical"); set(v) = putS("ov_mode", v)
-    var ovScale: Int get() = getI("ov_scale", 100).coerceIn(80, 140); set(v) = putI("ov_scale", v.coerceIn(80, 140))
+    var ovScale: Int get() = getI("ov_scale", 100).coerceIn(60, 140); set(v) = putI("ov_scale", v.coerceIn(60, 140))
     var ovAlpha: Int get() = getI("ov_alpha", 92).coerceIn(60, 100); set(v) = putI("ov_alpha", v.coerceIn(60, 100))
     var ovNext: Int get() = getI("ov_next", 5).coerceIn(3, 5); set(v) = putI("ov_next", v.coerceIn(3, 5))
     var ovKeyboard: Boolean get() = getB("ov_kb", true); set(v) = putB("ov_kb", v)

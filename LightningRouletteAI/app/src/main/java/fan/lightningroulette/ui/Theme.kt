@@ -136,7 +136,7 @@ fun TableDistributionRow(call: TableCall, dense: Boolean = false) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(if (dense) 2.dp else 4.dp)) {
             for (i in 0..classCount) {
                 val zero = i == classCount
-                val selected = !zero && i == call.cls
+                val selected = !zero && call.covers(i)
                 val fill = when {
                     call.cat == TableCats.COLOR && i == 0 -> C.red
                     call.cat == TableCats.COLOR && i == 1 -> C.black

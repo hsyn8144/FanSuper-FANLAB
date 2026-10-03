@@ -189,6 +189,28 @@ class ResumeTest {
     private fun spins(n: Int): IntArray { val r = java.util.Random(31); return IntArray(n) { r.nextInt(37) } }
     private fun times(n: Int): LongArray = LongArray(n) { 1_700_000_000L + it * 60L }
 
+    @Test fun tablePicksAreOneOrTwoAndOnlyForThreeClassCategories() {
+        val a = TableCall(TableCats.COLOR, 1, 0.5, 18.0 / 37, doubleArrayOf(0.45, 0.5, 0.05), cls2 = 0)
+        assertEquals("ikili kategoride ikinci seçim yok sayılır", listOf(1), a.picks)
+        val d = TableCall(TableCats.DOZEN, 0, 0.34, 12.0 / 37, doubleArrayOf(0.34, 0.33, 0.30, 0.03), cls2 = 1)
+        assertEquals(listOf(0, 1), d.picks); assertTrue(d.covers(1)); assertFalse(d.covers(2)); assertFalse(d.covers(-1))
+        assertEquals(0.67, d.pCover, 1e-9)
+        val one = TableCall(TableCats.COLUMN, 2, 0.4, 12.0 / 37, doubleArrayOf(0.3, 0.27, 0.4, 0.03))
+        assertEquals(listOf(2), one.picks)
+        val back = TableCall.fromMap(Json.parse(Json.stringify(d.toMap())).jmap())
+        assertEquals(d.picks, back.picks); assertEquals(d.pCover, back.pCover, 1e-12)
+        // eski kayıtlar (cls2 yok) tek seçim olarak okunur
+        val old = TableCall.fromMap(mapOf("cat" to 3, "cls" to 1, "p" to 0.4, "base" to 0.32, "probs" to listOf(0.3, 0.4, 0.27, 0.03)))
+        assertEquals(listOf(1), old.picks)
+        // motor: ikili kategoriler her zaman tek, üç sınıflılar 1..2 seçim
+        val h = randomSpins(400, 7L)
+        val calls = TableEngine(Params(300, 0.02, Sectors.DEFAULT)).predict(h)
+        for (c in calls) {
+            if (TableCats.classes(c.cat) == 2) assertEquals(1, c.picks.size) else assertTrue(c.picks.size in 1..2)
+            assertEquals(c.cls, c.picks.first())
+        }
+    }
+
     @Test fun checkpointResumeGivesSameResultAsUninterruptedRun() {
         val a = spins(600); val t = times(a.size)
         val full = ReplayEngine(BrainConfig()).run(a, t, 50, 100)
